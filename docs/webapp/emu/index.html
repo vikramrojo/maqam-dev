@@ -1,0 +1,947 @@
+<!doctype html>
+<!--
+  SLOOP in the browser: the real firmware, compiled to WebAssembly, behind a drawing of the FM-1.
+  SPDX-License-Identifier: GPL-3.0-only
+
+  The panel drawing, the hit-target / touch system, knob drag and wheel, the latch, the computer
+  keyboard map, the canvas drawing, the start button and the worklet loop are ported from
+  fm1-x0x/web/emu (https://github.com/charlesvestal/fm1-x0x), (c) Charles Vestal, GPL-3.0-only.
+  Adapted for SLOOP: SCL button, Web MIDI in, IndexedDB flash, modalities panel.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SLOOP in the browser</title>
+<meta name="description" content="Play SLOOP, the groovebox firmware for the M-VAVE FM-1, in your browser: the same code the FM-1 runs.">
+<style>
+:root { --ground: #f4f5f6; --ink: #1c1f23; --muted: #5b626a; --rule: #d9dde1; --accent: #c8700a; --card: #fff; color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --ground: #131518; --ink: #e6e8eb; --muted: #9aa1a9; --rule: #2d3137; --accent: #f0a043; --card: #1a1d21; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --ground: #131518; --ink: #e6e8eb; --muted: #9aa1a9; --rule: #2d3137; --accent: #f0a043; --card: #1a1d21; color-scheme: dark; }
+body { background: var(--ground); color: var(--ink); margin: 0; padding-inline: 16px; padding-block: 28px 48px;
+       font: 400 16px/1.55 "Helvetica Neue", Arial, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem 1.2rem; margin: 0 0 1rem; }
+h1 { font: 700 2rem/1.1 "Arial Narrow", Arial, sans-serif; margin: 0; }
+header p { margin: 0; color: var(--muted); }
+header nav { margin-left: auto; display: flex; gap: 1rem; }
+a { color: var(--accent); }
+.device { position: relative; width: 100%; aspect-ratio: 1000 / 640; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+.device svg { pointer-events: none; position: absolute; inset: 0; width: 100%; height: 100%; }
+.hit { position: absolute; touch-action: none; cursor: pointer; -webkit-tap-highlight-color: transparent; border-radius: 12px; }
+.hit.knob { cursor: ns-resize; border-radius: 50%; }
+.hit:focus-visible { outline: 2px solid #f0a043; outline-offset: 2px; }
+.device canvas { position: absolute; left: 31.8%; top: 9.6875%; width: 20%; height: 31.25%; image-rendering: pixelated; background: #000; border-radius: 2px; }
+.btnface { transition: fill .06s; }
+.lit .btnface { fill: #f0a043; }
+.lit text.btn { fill: #1b1205; }
+.held .btnface, .held .keyface { stroke: #f0a043; stroke-width: 3; }
+.latched .btnface { stroke: #6fc3ff; stroke-width: 3; }
+.keyface { transition: fill .06s; }
+.lit .keyface.white { fill: #f3b25c; }
+.lit .keyface.black { fill: #e0902c; }
+.start { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(10, 11, 13, .55); border-radius: 4.4% / 6.9%; }
+.start button { font: 600 1.25rem "Arial Narrow", Arial, sans-serif; letter-spacing: .04em; padding: .7em 1.6em;
+                border-radius: 999px; border: 0; background: #f0a043; color: #1b1205; cursor: pointer; }
+.start[hidden] { display: none; }
+.start button:disabled { opacity: .6; cursor: progress; }
+.turn { display: none; margin: 0 0 .8rem; color: var(--muted); font-size: .92rem; }
+@media (orientation: portrait) and (max-width: 700px) { .turn { display: block; } }
+.bar { display: flex; flex-wrap: wrap; gap: .5rem 1.2rem; align-items: center; margin: .9rem 0 0; color: var(--muted); font-size: .92rem; }
+.bar button, .midi button { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: .3em .8em; cursor: pointer; }
+.bar .num { font-variant-numeric: tabular-nums; }
+.err { color: #c0392b; }
+.midi { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; margin: .9rem 0 0; font-size: .92rem; }
+.midi select { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: .25em .5em; max-width: 18rem; }
+.midi fieldset { border: 0; padding: 0; margin: 0; display: flex; gap: .8rem; align-items: center; }
+.midi legend { float: left; padding: 0 .5rem 0 0; }
+.midi .mstat { color: var(--muted); }
+h2 { font: 600 1.1rem "Arial Narrow", Arial, sans-serif; margin: 0 0 .3rem; }
+.mods { margin: 1.6rem 0 0; }
+.mods ul { list-style: none; padding: 0; margin: 0; display: grid; gap: .4rem; }
+.mods li { display: flex; flex-wrap: wrap; gap: .2rem .8rem; align-items: baseline; padding: .45rem .8rem; border: 1px solid var(--rule); border-radius: 8px; background: var(--card); }
+.mods b { min-width: 11rem; font-weight: 600; }
+.mods .desc { flex: 1 1 18rem; color: var(--muted); }
+.badge { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; border-radius: 999px; padding: .05em .7em; border: 1px solid var(--rule); min-width: 6.5rem; text-align: center; }
+.badge.working { background: #2e7d32; color: #fff; border-color: #2e7d32; }
+.badge.logged { background: #1565c0; color: #fff; border-color: #1565c0; }
+.badge.covered { background: #6a1b9a; color: #fff; border-color: #6a1b9a; }
+.badge.unavailable { background: transparent; color: var(--muted); }
+.logs { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1rem 2rem; margin: 1rem 0 0; }
+.log { height: 11rem; overflow: auto; margin: 0; padding: .4rem .6rem; border: 1px solid var(--rule); border-radius: 8px; background: var(--card);
+       font: 12px/1.4 ui-monospace, Menlo, monospace; white-space: pre; }
+.logs label { font-size: .85rem; color: var(--muted); }
+.help { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem 2rem; margin: 1.6rem 0 0; }
+.help p, .help ul { margin: 0; color: var(--muted); max-width: 60ch; }
+.help ul { padding-left: 1.1rem; }
+kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); border: 1px solid var(--rule); border-radius: 4px; padding: 0 .3em; color: var(--ink); }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #1c1f23; color: #fff; padding: .6em 1.2em; border-radius: 8px; z-index: 9; }
+.toast[hidden] { display: none; }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>SLOOP</h1>
+  <p>in the browser: the same code the FM-1 runs</p>
+  <span id="mockbadge" hidden>MOCK MODE (no firmware)</span>
+  <nav><a href="https://github.com/vikramrojo/maqam-dev">Source</a></nav>
+</header>
+
+<p class="turn">Turn your phone sideways for bigger controls.</p>
+<div class="device" id="device">
+  <svg id="panel" viewBox="0 0 1000 640" role="application" aria-label="The FM-1: knobs, buttons, screen and keys"></svg>
+  <canvas id="screen" width="240" height="240" aria-label="The FM-1 screen"></canvas>
+  <div class="start" id="start"><button id="go" type="button">Switch on</button></div>
+</div>
+
+<div class="bar">
+  <span id="status" role="status">Off. Sound starts when you switch it on.</span>
+  <span class="num" id="version"></span>
+  <span class="num" id="cpu"></span>
+  <span id="persist"></span>
+  <button id="reset" type="button" title="Forget the saved projects, presets and settings, and start again from the factory settings">Factory reset</button>
+</div>
+
+<div class="midi">
+  <label for="midiIn">MIDI in</label>
+  <select id="midiIn" aria-label="MIDI input device"><option value="">None</option></select>
+  <fieldset><legend>Route as</legend>
+    <label><input type="radio" name="route" value="usb" checked> USB</label>
+    <label><input type="radio" name="route" value="trs"> TRS</label>
+  </fieldset>
+  <span class="mstat" id="midiStat" role="status"></span>
+</div>
+
+<section class="mods" aria-labelledby="mods-h">
+  <h2 id="mods-h">FM-1 features in the emulator</h2>
+  <ul id="modlist"></ul>
+  <div class="logs">
+    <div><h2>MIDI out log <label><input type="checkbox" id="hideClock" checked> hide clock</label></h2>
+      <pre class="log" id="logOut" role="log" aria-label="MIDI out log" tabindex="0"></pre></div>
+    <div><h2>Web editor SysEx log</h2>
+      <pre class="log" id="logEd" role="log" aria-label="Editor SysEx log" tabindex="0"></pre></div>
+  </div>
+</section>
+
+<section class="help">
+  <div>
+    <h2>Mouse and touch</h2>
+    <ul>
+      <li>Drag a knob up or down, or scroll over it. Click or touch buttons and keys; several fingers work on a touch screen.</li>
+      <li><kbd>Shift</kbd>-click (or right-click) a button to hold it, click again to let go: latch SCL, then play keys.</li>
+    </ul>
+  </div>
+  <div>
+    <h2>Keyboard</h2>
+    <ul>
+      <li>White keys: <kbd>Q</kbd>–<kbd>I</kbd>, <kbd>A</kbd>–<kbd>K</kbd>. Black keys: <kbd>1</kbd>–<kbd>0</kbd>, <kbd>-</kbd>.</li>
+      <li><kbd>Space</kbd> PLAY, <kbd>Enter</kbd> REC, <kbd>Esc</kbd> HOME, <kbd>Z</kbd> / <kbd>X</kbd> OCT− / OCT+, <kbd>↑</kbd> <kbd>↓</kbd> SELECT (tempo).</li>
+      <li>Layers, held: <kbd>,</kbd> FX, <kbd>.</kbd> SCL, <kbd>/</kbd> ENV, <kbd>;</kbd> LFO, <kbd>'</kbd> EDIT, <kbd>\</kbd> GLO, <kbd>[</kbd> SAVE, <kbd>]</kbd> ARP, <kbd>=</kbd> SEQ.</li>
+    </ul>
+  </div>
+  <div>
+    <h2>Playing SLOOP</h2>
+    <p>Every function button is a layer: hold FX, SCL, EDIT, GLO, SAVE, ARP or SEQ and the 16 white keys and the four knobs change job.
+      Tap HOME for the tracks, hold it for the menu (LIGHTS, KEYS, NOTES). ALGORITHM picks the track, PRESETS the sound.
+      Your projects and settings stay in this browser.</p>
+  </div>
+</section>
+</main>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<!-- Pure helpers, shared by the page, the worklet (prepended to its source) and test_page.mjs. -->
+<script id="pure">
+var SloopPure = (function () {
+  "use strict";
+  var HEX = "0123456789ABCDEF";
+  function hex(bytes, n) {
+    var s = [], m = n === undefined ? bytes.length : Math.min(n, bytes.length);
+    for (var i = 0; i < m; i++) s.push(HEX[bytes[i] >> 4] + HEX[bytes[i] & 15]);
+    return s.join(" ") + (m < bytes.length ? " ..." : "");
+  }
+  function isSysex(bytes) { return bytes.length > 0 && (bytes[0] === 0xF0 || bytes[0] === 0xF7); }
+  // One USB-MIDI event packet (cable 0), as a uint32 little-endian: byte0 = CIN | cable << 4, bytes 1..3 = the MIDI bytes.
+  // Returns null for SysEx, stray data bytes and undefined statuses (the page drops those).
+  function usbPacket(bytes, cable) {
+    cable = cable | 0;
+    var s = bytes[0], cin, n;
+    if (s === undefined || s < 0x80 || isSysex(bytes)) return null;
+    if (s < 0xF0) {
+      var hi = s >> 4;
+      cin = hi; n = (hi === 0xC || hi === 0xD) ? 2 : 3;
+    } else if (s >= 0xF8) { cin = 0xF; n = 1; }
+    else if (s === 0xF1 || s === 0xF3) { cin = 2; n = 2; }
+    else if (s === 0xF2) { cin = 3; n = 3; }
+    else if (s === 0xF6) { cin = 5; n = 1; }
+    else return null;                               // 0xF4 / 0xF5 undefined
+    var b1 = s, b2 = n > 1 ? (bytes[1] | 0) & 0x7F : 0, b3 = n > 2 ? (bytes[2] | 0) & 0x7F : 0;
+    return ((cin | (cable << 4)) | (b1 << 8) | (b2 << 16) | (b3 << 24)) >>> 0;
+  }
+  // Which bytes go to the TRS parser: everything but SysEx.
+  function trsBytes(bytes) { return isSysex(bytes) ? null : Array.prototype.slice.call(bytes); }
+  function sysexInfo(bytes) { return { len: bytes.length, head: hex(bytes, 8) }; }
+  // The dirty-sector bitmap (8 x uint32, 256 sectors) -> ascending sector indices.
+  function dirtySectors(words) {
+    var out = [];
+    for (var w = 0; w < 8; w++) {
+      var v = words[w] >>> 0;
+      for (var b = 0; b < 32 && v; b++, v >>>= 1) if (v & 1) out.push(w * 32 + b);
+    }
+    return out;
+  }
+  // Held notes per channel, so a disconnect can release them.
+  function createHeld() { var a = []; for (var i = 0; i < 16; i++) a.push({}); return a; }
+  function trackNote(held, bytes) {
+    var s = bytes[0], d = 0;
+    if (s < 0x80) {                                   // TRS running status: data bytes only
+      if (!held.rs) return;
+      s = held.rs; d = -1;
+    } else if (s < 0xF0) held.rs = s;
+    else if (s < 0xF8) held.rs = 0;                   // system common cancels running status
+    var k = s & 0xF0, ch = s & 15, n = bytes[1 + d], v = bytes[2 + d];
+    if (k === 0x90 && v > 0) held[ch][n] = 1;
+    else if (k === 0x80 || k === 0x90) delete held[ch][n];
+  }
+  function releaseAll(held) {
+    var out = [];
+    for (var ch = 0; ch < 16; ch++) { for (var n in held[ch]) out.push([0x80 | ch, +n, 0]); held[ch] = {}; }
+    return out;
+  }
+  var NAMES = { 0x8: "note off", 0x9: "note on", 0xA: "poly AT", 0xB: "CC", 0xC: "program", 0xD: "chan AT", 0xE: "pitch bend" };
+  var RT = { 0xF8: "clock", 0xFA: "start", 0xFB: "continue", 0xFC: "stop", 0xFE: "active sense", 0xFF: "reset" };
+  // A MIDI-out ring packet -> {cin, ch (1-16 or 0), type, a, b, text}.
+  function decodeMidiOut(pkt) {
+    pkt = pkt >>> 0;
+    var cin = pkt & 15, b1 = (pkt >>> 8) & 255, b2 = (pkt >>> 16) & 255, b3 = pkt >>> 24;
+    if (cin >= 8 && cin <= 0xE) {
+      var ch = (b1 & 15) + 1, type = NAMES[cin] || "?";
+      if (cin === 9 && b3 === 0) type = "note off";
+      return { cin: cin, ch: ch, type: type, a: b2, b: b3, text: "ch" + ch + " " + type + " " + b2 + (cin === 0xC || cin === 0xD ? "" : " " + b3) };
+    }
+    if (cin === 0xF) { var t = RT[b1] || ("0x" + b1.toString(16)); return { cin: cin, ch: 0, type: t, a: 0, b: 0, text: t }; }
+    if (cin >= 4 && cin <= 7) return { cin: cin, ch: 0, type: "sysex", a: 0, b: 0, text: "sysex chunk" };
+    return { cin: cin, ch: 0, type: "other", a: b2, b: b3, text: "cin " + cin };
+  }
+  // SysEx sent by the firmware arrives as CIN 4..7 packets; collect them into messages.
+  function createSysexAsm() {
+    var buf = [];
+    return function (pkt) {
+      pkt = pkt >>> 0;
+      var cin = pkt & 15, n = cin === 4 ? 3 : cin === 5 ? 1 : cin === 6 ? 2 : cin === 7 ? 3 : 0;
+      if (!n) return null;
+      for (var i = 0; i < n; i++) buf.push((pkt >>> (8 + 8 * i)) & 255);
+      if (cin === 4) return null;
+      var done = buf; buf = [];
+      return sysexInfo(done);
+    };
+  }
+  return { hex: hex, isSysex: isSysex, usbPacket: usbPacket, trsBytes: trsBytes, sysexInfo: sysexInfo, dirtySectors: dirtySectors,
+           createHeld: createHeld, trackNote: trackNote, releaseAll: releaseAll, decodeMidiOut: decodeMidiOut, createSysexAsm: createSysexAsm };
+})();
+</script>
+
+<!-- The AudioWorklet source: SloopPure is prepended, then this. Loaded through a Blob URL. -->
+<script type="text/worklet" id="worklet">
+"use strict";
+// The device: sloop.wasm (web/emu/sloop_web.c) with imports {}; or, with ?mock=1, a small JS fake with the same exports.
+const clock = globalThis.performance ? () => globalThis.performance.now() : () => Date.now();
+const SECTOR = 4096;
+
+function mockDevice() {
+  const mem = new WebAssembly.Memory({ initial: 24 });
+  const O = { L: 0, R: 4096, FB: 8192, MO: 124000, MOW: 125056, DIRTY: 125100, VER: 125200, FLASH: 131072 };
+  let blits = 1, btn = 0, key = 0, lb = 0, lk = 0, mow = 0, events = 0, ms = 0, enc = 0;
+  const u32 = () => new Uint32Array(mem.buffer), u16 = () => new Uint16Array(mem.buffer), u8 = () => new Uint8Array(mem.buffer);
+  const draw = () => {
+    const f = u16(), base = O.FB / 2;
+    for (let y = 0; y < 240; y++) for (let x = 0; x < 240; x++) {
+      let r = (x >> 3), g = (y >> 2), b = ((x + y + enc) >> 4) & 31;
+      if (y > 100 && y < 140) { r = key & (1 << ((x / 9) | 0)) ? 31 : 0; g = r ? 63 : 0; b = r ? 31 : 8; }
+      const p = (r << 11) | (g << 5) | b;
+      f[base + y * 240 + x] = ((p >> 8) | (p << 8)) & 0xFFFF;
+    }
+    blits++;
+  };
+  const mo = (b1, b2, b3, cin) => { const w = u32(); w[O.MO / 4 + (mow & 255)] = ((cin | (b1 << 8) | (b2 << 16) | (b3 << 24)) >>> 0); mow++; w[O.MOW / 4] = mow; };
+  const mark = (sector) => { u32()[O.DIRTY / 4 + (sector >> 5)] |= 1 << (sector & 31); };
+  const ver = "SLOOP mock"; for (let i = 0; i < ver.length; i++) u8()[O.VER + i] = ver.charCodeAt(i);
+  return {
+    memory: mem,
+    web_boot() { draw(); },
+    web_render(n) { u8().fill(0, 0, 8192); ms += n / 44.1; },
+    web_buttons(m) {
+      const rise = m & ~btn; btn = m >>> 0; lb = btn;
+      if ((btn & (1 << 12)) && (btn & (1 << 13))) events |= 1;
+      if (rise & (1 << 7)) { u8()[O.FLASH + 0x97000] ^= 0x55; mark(0x97); }   // SAVE: dirty a data sector
+      draw();
+    },
+    web_keys(m) {
+      for (let k = 0; k < 27; k++) {
+        const was = key & (1 << k), is = m & (1 << k);
+        if (is && !was) mo(0x90, 53 + k, 100, 9); else if (!is && was) mo(0x80, 53 + k, 0, 8);
+      }
+      key = m >>> 0; lk = key; draw();
+    },
+    web_enc(role, n) { enc += n; draw(); },
+    web_master() {},
+    web_midi_usb(p) { lk = 1 << (((p >>> 16) & 255) % 27); draw(); },
+    web_midi_trs(b) { if (b >= 0x80 && b < 0xF0) draw(); },
+    web_mo_buf: () => O.MO, web_mo_w: () => mow,
+    web_fb: () => O.FB, web_blits: () => blits,
+    web_lit_buttons: () => lb, web_lit_keys: () => lk,
+    web_flash: () => O.FLASH, web_flash_size: () => 1 << 20,
+    web_flash_dirty: () => O.DIRTY, web_flash_clean() { u32().fill(0, O.DIRTY / 4, O.DIRTY / 4 + 8); },
+    web_events() { const e = events; events = 0; return e; },
+    web_version: () => O.VER, web_ms: () => ms | 0,
+    web_out_l: () => O.L, web_out_r: () => O.R,
+  };
+}
+
+class Sloop extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.ex = null; this.q = [];
+    this.sentBlits = -1; this.lastFrame = 0; this.lastFlash = 0; this.mor = 0;
+    this.busy = 0; this.frames = 0; this.peak = 0;
+    this.port.onmessage = (e) => this.onMessage(e.data);
+  }
+
+  async onMessage(m) {
+    if (m.type === "load") {
+      try {
+        if (m.mock) this.ex = mockDevice();
+        else this.ex = (await WebAssembly.instantiate(m.wasm, {})).instance.exports;
+        const ex = this.ex;
+        this.mem = ex.memory;
+        if (ex.web_flash_size() > 0)
+          for (const s of m.flash || []) {
+            const b = new Uint8Array(s.bytes);
+            if ((s.index + 1) * SECTOR <= ex.web_flash_size())
+              new Uint8Array(this.mem.buffer, ex.web_flash() + s.index * SECTOR, SECTOR).set(b.subarray(0, SECTOR));
+          }
+        ex.web_master(m.master === undefined ? 800 : m.master);
+        ex.web_boot();
+        this.mor = ex.web_mo_w() >>> 0;
+        this.port.postMessage({ type: "ready", version: this.cstr(ex.web_version()) });
+      } catch (err) {
+        this.ex = null;
+        this.port.postMessage({ type: "error", message: String(err && err.message || err) });
+      }
+    } else this.q.push(m);
+  }
+
+  cstr(p) {
+    const u = new Uint8Array(this.mem.buffer, p, 64);
+    let s = "";
+    for (let i = 0; i < 64 && u[i]; i++) s += String.fromCharCode(u[i]);
+    return s;
+  }
+
+  apply() {                                  // queued page input, in arrival order, before the render
+    // The firmware's MIDI queue holds 64 entries and drops when full: feed at most 32 MIDI items per quantum, in order.
+    const ex = this.ex, q = this.q;
+    let budget = 32, i = 0;
+    for (; i < q.length; i++) {
+      const m = q[i];
+      switch (m.type) {
+        case "buttons": ex.web_buttons(m.mask >>> 0); break;
+        case "keys": ex.web_keys(m.mask >>> 0); break;
+        case "enc": ex.web_enc(m.role, m.n | 0); break;
+        case "master": ex.web_master(m.v | 0); break;
+        case "midi": {
+          const trs = m.route === "trs", items = (trs ? m.bytes : m.packets) || [];
+          let o = m.off | 0;
+          for (; o < items.length && budget > 0; o++, budget--) {
+            if (trs) ex.web_midi_trs(items[o] & 255); else ex.web_midi_usb(items[o] >>> 0);
+          }
+          if (o < items.length) { m.off = o; q.splice(0, i); return; }
+          break;
+        }
+      }
+    }
+    q.length = 0;
+  }
+
+  publish() {
+    const ex = this.ex, blits = ex.web_blits();
+    const msg = { type: "frame", ledsBtn: ex.web_lit_buttons() >>> 0, ledsKey: ex.web_lit_keys() >>> 0, events: ex.web_events() >>> 0, ms: ex.web_ms(), peak: this.peak };
+    this.peak = 0;
+    const transfer = [];
+    if (this.frames >= 44100) {
+      msg.load = Math.round(1000 * this.busy / (this.frames / 44.1)) / 10;   // one decimal: a fast computer spends well under 1 %
+      this.busy = this.frames = 0;
+    }
+    if (blits !== this.sentBlits) {
+      this.sentBlits = blits;
+      msg.fb = new Uint16Array(this.mem.buffer, ex.web_fb(), 240 * 240).slice();
+      transfer.push(msg.fb.buffer);
+    }
+    const w = ex.web_mo_w() >>> 0;
+    if (w !== this.mor) {
+      if (w - this.mor > 256) this.mor = w - 256;
+      const ring = new Uint32Array(this.mem.buffer, ex.web_mo_buf(), 256);
+      msg.midiOut = [];
+      for (; this.mor !== w; this.mor = (this.mor + 1) >>> 0) msg.midiOut.push(ring[this.mor & 255]);
+    }
+    if (currentTime - this.lastFlash >= 1) {                 // dirty flash sectors, at most once a second
+      this.lastFlash = currentTime;
+      const idx = SloopPure.dirtySectors(new Uint32Array(this.mem.buffer, ex.web_flash_dirty(), 8));
+      if (idx.length) {
+        msg.flash = idx.map((i) => {
+          const bytes = new Uint8Array(this.mem.buffer, ex.web_flash() + i * SECTOR, SECTOR).slice();
+          transfer.push(bytes.buffer);
+          return { index: i, bytes };
+        });
+        ex.web_flash_clean();
+      }
+    }
+    this.port.postMessage(msg, transfer);
+  }
+
+  process(inputs, outputs) {
+    if (!this.ex) return true;
+    const out = outputs[0], n = out[0].length, ex = this.ex;
+    this.apply();
+    const t0 = clock();
+    ex.web_render(n);
+    this.busy += clock() - t0;
+    this.frames += n;
+    out[0].set(new Float32Array(this.mem.buffer, ex.web_out_l(), n));
+    if (out[1]) out[1].set(new Float32Array(this.mem.buffer, ex.web_out_r(), n));
+    for (let i = 0; i < n; i++) { const a = Math.abs(out[0][i]); if (a > this.peak) this.peak = a; }
+    if (currentTime - this.lastFrame >= 1 / 30) { this.lastFrame = currentTime; this.publish(); }
+    return true;
+  }
+}
+registerProcessor("sloop", Sloop);
+</script>
+
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+const MOCK = new URLSearchParams(location.search).get("mock") === "1";
+// Logical button bits (firmware/src/panel.c) and encoder roles (web_enc).
+const BTN = { FX: 0, SCL: 1, ENV: 2, LFO: 3, EDIT: 4, GLO: 5, HOME: 6, SAVE: 7, ARP: 8, SEQ: 9, PLAY: 10, REC: 11, "OCT-": 12, "OCT+": 13 };
+const ENC = { SELECT: 0, ALGORITHM: 1, PRESETS: 2, KNOB1: 3, KNOB2: 4, KNOB3: 5, KNOB4: 6 };
+const WHITE_K = [0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26];
+const BLACK_K = [1, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25];
+const BLACK_AFTER = [0, 1, 2, 4, 5, 7, 8, 9, 11, 12, 14];
+const BODY = "#3a3d42", TRAY = "#26282c", KEY_W = "#d9dadc", KEY_B = "#c9cacd", KNOB = "#1f2124", BTNC = "#2e3135", LABEL = "#e8e8ea";
+const MASTER_MAX = 1023;
+const $ = (id) => document.getElementById(id);
+
+const svg = $("panel");
+function el(tag, attrs, parent = svg) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  parent.appendChild(e);
+  return e;
+}
+function text(parent, x, y, s, size, fill = LABEL, weight = 600) {
+  const t = el("text", { x, y, "text-anchor": "middle", "font-family": "'Arial Narrow', Arial, sans-serif",
+                         "font-size": size, "font-weight": weight, fill, "letter-spacing": ".05em", class: "btn", "pointer-events": "none" }, parent);
+  t.textContent = s;
+  return t;
+}
+
+// ---------------------------------------------------------------- the panel
+el("rect", { x: 4, y: 4, width: 992, height: 632, rx: 44, fill: BODY });
+const knobs = {};
+function knob(x, y, r, label, role) {
+  const g = el("g", { class: "ctl knob", tabindex: 0, role: "slider", "aria-label": label });
+  el("circle", { cx: x, cy: y, r: r + 5, fill: TRAY }, g);
+  el("circle", { cx: x, cy: y, r, fill: KNOB, stroke: "#44474c", "stroke-width": 2 }, g);
+  const ind = el("line", { x1: x, y1: y - r + 5, x2: x, y2: y - r + 15, stroke: LABEL, "stroke-width": 3, "stroke-linecap": "round" }, g);
+  text(g, x, y - r - 12, label, 17);
+  el("circle", { cx: x, cy: y, r: r + 14, fill: "transparent" }, g);
+  knobs[label] = { g, ind, x, y, angle: 0, role };
+  return knobs[label];
+}
+knob(105, 100, 24, "MASTER", "master");
+knob(215, 100, 24, "SELECT", ENC.SELECT);
+knob(105, 205, 24, "PRESETS", ENC.PRESETS);
+knob(215, 205, 24, "ALGORITHM", ENC.ALGORITHM);
+for (let i = 0; i < 4; i++) knob(610 + i * 104, 100, 22, `KNOB${i + 1}`, ENC[`KNOB${i + 1}`]);
+
+const buttons = {};
+function button(x, y, w, h, label, two) {
+  const g = el("g", { class: "ctl", role: "button", "aria-label": label });
+  el("rect", { x, y, width: w, height: h, rx: 9, fill: BTNC, stroke: "#4a4d52", "stroke-width": 1.5, class: "btnface" }, g);
+  if (two) { text(g, x + w / 2, y + h / 2 - 1, label, 12); text(g, x + w / 2, y + h / 2 + 12, two, 12); }
+  else text(g, x + w / 2, y + h / 2 + 5, label, 15);
+  buttons[label] = { g, bit: BTN[label] };
+}
+el("rect", { x: 58, y: 258, width: 210, height: 58, rx: 14, fill: TRAY });
+button(72, 268, 82, 38, "OCT-"); button(170, 268, 82, 38, "OCT+");
+el("rect", { x: 300, y: 44, width: 236, height: 236, rx: 26, fill: "#111214" });
+el("rect", { x: 568, y: 160, width: 400, height: 140, rx: 18, fill: TRAY });
+const ROW1 = ["FX", "SCL", "ENV", "LFO", "EDIT", "GLO"], ROW2 = ["HOME", "SAVE", "ARP", "SEQ", "PLAY", "REC"];
+for (let i = 0; i < 6; i++) {
+  button(582 + i * 63, 174, 54, 48, ROW1[i]);
+  if (ROW2[i] === "PLAY") button(582 + i * 63, 236, 54, 48, "PLAY", "STOP"); else button(582 + i * 63, 236, 54, 48, ROW2[i]);
+}
+
+const keys = [];
+(function keybed(x0, y0, w, h) {
+  el("rect", { x: x0, y: y0, width: w, height: h, rx: 18, fill: TRAY });
+  const pitch = (w - 24) / 16, kw = pitch * 0.78;
+  for (let i = 0; i < 16; i++) {
+    const g = el("g", { class: "ctl", role: "button", "aria-label": `white key ${i + 1}` });
+    el("rect", { x: x0 + 12 + i * pitch + (pitch - kw) / 2, y: y0 + h * 0.43, width: kw, height: h * 0.52, rx: kw / 2, fill: KEY_W, class: "keyface white" }, g);
+    keys[WHITE_K[i]] = { g };
+  }
+  BLACK_AFTER.forEach((a, k) => {
+    const g = el("g", { class: "ctl", role: "button", "aria-label": `black key ${k + 1}` });
+    el("rect", { x: x0 + 12 + (a + 1) * pitch - kw / 2, y: y0 + h * 0.06, width: kw, height: h * 0.33, rx: kw / 2, fill: KEY_B, class: "keyface black" }, g);
+    keys[BLACK_K[k]] = { g };
+  });
+})(36, 340, 928, 270);
+
+// ---------------------------------------------------------------- touch targets
+// The drawing is only a picture (pointer-events: none). Each control gets an invisible HTML target over it:
+// browsers (iOS Safari above all) honour touch-action and touchstart on HTML elements but not on SVG ones.
+const device = $("device");
+function hit(c, cls) {
+  const b = c.g.getBBox(), d = document.createElement("div");
+  d.className = "hit" + (cls ? " " + cls : "");
+  Object.assign(d.style, { left: `${b.x / 10}%`, top: `${b.y / 6.4}%`, width: `${b.width / 10}%`, height: `${b.height / 6.4}%` });
+  for (const a of ["role", "aria-label", "tabindex"]) if (c.g.hasAttribute(a)) { d.setAttribute(a, c.g.getAttribute(a)); c.g.removeAttribute(a); }
+  c.g.setAttribute("aria-hidden", "true");
+  d.addEventListener("touchstart", (e) => e.preventDefault(), { passive: false });
+  device.insertBefore(d, $("start"));
+  c.hit = d;
+}
+for (const k of Object.values(knobs)) hit(k, "knob");
+for (const b of Object.values(buttons)) hit(b);
+keys.forEach((k) => hit(k));
+
+// ---------------------------------------------------------------- state and input
+let node = null, btnMask = 0, keyMask = 0, latched = 0, master = 800;
+const btnHeldBy = new Map(), keyHeldBy = new Map();      // pointer / key id -> bit
+function send(m, transfer) { if (node) node.port.postMessage(m, transfer || []); }
+function syncButtons() {
+  let m = latched;
+  for (const b of btnHeldBy.values()) m |= 1 << b;
+  if (m !== btnMask) { btnMask = m; send({ type: "buttons", mask: m }); }
+  for (const b of Object.values(buttons)) {
+    b.g.classList.toggle("held", !!(m & (1 << b.bit)));
+    b.g.classList.toggle("latched", !!(latched & (1 << b.bit)));
+    b.hit.classList.toggle("latched", !!(latched & (1 << b.bit)));
+    b.hit.setAttribute("aria-pressed", m & (1 << b.bit) ? "true" : "false");
+  }
+}
+function syncKeys() {
+  let m = 0;
+  for (const k of keyHeldBy.values()) m |= 1 << k;
+  m >>>= 0;
+  if (m !== keyMask) { keyMask = m; send({ type: "keys", mask: m }); }
+  keys.forEach((k, i) => k.g.classList.toggle("held", !!(m & (1 << i))));
+}
+for (const b of Object.values(buttons)) {
+  b.hit.addEventListener("contextmenu", (e) => e.preventDefault());
+  b.hit.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    if (e.shiftKey || e.button === 2) { latched ^= 1 << b.bit; syncButtons(); return; }
+    if (latched & (1 << b.bit)) { latched &= ~(1 << b.bit); syncButtons(); return; }
+    b.hit.setPointerCapture(e.pointerId);
+    btnHeldBy.set("p" + e.pointerId, b.bit);
+    syncButtons();
+  });
+}
+keys.forEach((k, i) => {
+  k.hit.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    k.hit.setPointerCapture(e.pointerId);
+    keyHeldBy.set("p" + e.pointerId, i);
+    syncKeys();
+  });
+});
+function pointerUp(e) {
+  const id = "p" + e.pointerId;
+  if (btnHeldBy.delete(id)) syncButtons();
+  if (keyHeldBy.delete(id)) syncKeys();
+}
+device.addEventListener("pointerup", pointerUp);
+device.addEventListener("pointercancel", pointerUp);
+device.addEventListener("lostpointercapture", pointerUp);
+
+const masterAngle = () => -135 + 270 * master / MASTER_MAX;
+function drawKnob(k) { k.ind.setAttribute("transform", `rotate(${k.angle} ${k.x} ${k.y})`); }
+function turn(k, n) {
+  if (!n) return;
+  if (k.role === "master") {
+    master = Math.max(0, Math.min(MASTER_MAX, master + n * 16));
+    k.angle = masterAngle();
+    send({ type: "master", v: master });
+  } else {
+    k.angle = (k.angle + n * 18) % 360;
+    send({ type: "enc", role: k.role, n });
+  }
+  drawKnob(k);
+}
+for (const k of Object.values(knobs)) {
+  if (k.role === "master") { k.angle = masterAngle(); drawKnob(k); }
+  let drag = null, wheel = 0;
+  k.hit.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    k.hit.setPointerCapture(e.pointerId);
+    drag = { y: e.clientY, acc: 0 };
+  });
+  k.hit.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    drag.acc += drag.y - e.clientY;
+    drag.y = e.clientY;
+    const step = k.role === "master" ? 3 : 7;
+    const n = Math.trunc(drag.acc / step);
+    if (n) { drag.acc -= n * step; turn(k, n); }
+  });
+  const end = () => { drag = null; };
+  k.hit.addEventListener("pointerup", end);
+  k.hit.addEventListener("pointercancel", end);
+  k.hit.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+    if (Math.abs(dy) >= 50) { turn(k, dy < 0 ? 1 : -1); wheel = 0; return; }   // a mouse wheel notch: one detent
+    wheel -= dy;                                                                   // a trackpad: by distance
+    const n = Math.trunc(wheel / 25);
+    if (n) { wheel -= n * 25; turn(k, n); }
+  }, { passive: false });
+  k.hit.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowUp" || e.key === "ArrowRight") { turn(k, 1); e.preventDefault(); e.stopPropagation(); }
+    if (e.key === "ArrowDown" || e.key === "ArrowLeft") { turn(k, -1); e.preventDefault(); e.stopPropagation(); }
+  });
+}
+
+const KEYMAP = {};
+"qwertyui".split("").forEach((c, i) => KEYMAP["Key" + c.toUpperCase()] = { key: WHITE_K[i] });
+"asdfghjk".split("").forEach((c, i) => KEYMAP["Key" + c.toUpperCase()] = { key: WHITE_K[8 + i] });
+"1234567890".split("").forEach((c, i) => KEYMAP["Digit" + c] = { key: BLACK_K[i] });
+KEYMAP.Minus = { key: BLACK_K[10] };
+Object.assign(KEYMAP, {
+  Space: { btn: BTN.PLAY }, Enter: { btn: BTN.REC }, Escape: { btn: BTN.HOME }, KeyZ: { btn: BTN["OCT-"] }, KeyX: { btn: BTN["OCT+"] },
+  // layer buttons, held (the page's own addition; the hold semantic is the firmware's)
+  Comma: { btn: BTN.FX }, Period: { btn: BTN.SCL }, Slash: { btn: BTN.ENV }, Semicolon: { btn: BTN.LFO }, Quote: { btn: BTN.EDIT },
+  Backslash: { btn: BTN.GLO }, BracketLeft: { btn: BTN.SAVE }, BracketRight: { btn: BTN.ARP }, Equal: { btn: BTN.SEQ },
+});
+const typing = (e) => e.target && e.target.closest && e.target.closest("select,input,textarea,button");
+addEventListener("keydown", (e) => {
+  if (!node || e.metaKey || e.ctrlKey || e.altKey || typing(e)) return;
+  if (e.code === "ArrowUp" || e.code === "ArrowDown") { turn(knobs.SELECT, e.code === "ArrowUp" ? 1 : -1); e.preventDefault(); return; }
+  const m = KEYMAP[e.code];
+  if (!m) return;
+  e.preventDefault();
+  if (e.repeat) return;
+  if (m.key !== undefined) { keyHeldBy.set("k" + e.code, m.key); syncKeys(); }
+  else { btnHeldBy.set("k" + e.code, m.btn); syncButtons(); }
+});
+addEventListener("keyup", (e) => {
+  const id = "k" + e.code;
+  if (keyHeldBy.delete(id)) syncKeys();
+  if (btnHeldBy.delete(id)) syncButtons();
+});
+addEventListener("blur", () => {
+  for (const id of [...btnHeldBy.keys()]) if (id[0] === "k") btnHeldBy.delete(id);
+  for (const id of [...keyHeldBy.keys()]) if (id[0] === "k") keyHeldBy.delete(id);
+  syncButtons(); syncKeys();
+});
+
+// ---------------------------------------------------------------- screen and lights
+const ctx = $("screen").getContext("2d");
+const img = ctx.createImageData(240, 240);
+function drawScreen(fb) {
+  const d = img.data;
+  for (let i = 0; i < 240 * 240; i++) {
+    const v = fb[i], p = ((v >> 8) | (v << 8)) & 0xFFFF;    // the panel takes it byte-swapped
+    d[i * 4] = ((p >> 11) & 31) * 255 / 31;
+    d[i * 4 + 1] = ((p >> 5) & 63) * 255 / 63;
+    d[i * 4 + 2] = (p & 31) * 255 / 31;
+    d[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+function drawLights(b, k) {
+  for (const x of Object.values(buttons)) x.g.classList.toggle("lit", !!(b & (1 << x.bit)));
+  keys.forEach((x, i) => x.g.classList.toggle("lit", !!(k & (1 << i))));
+}
+
+// ---------------------------------------------------------------- saved flash (IndexedDB, 4 KiB sectors by index)
+let persistOk = true, resetting = false;
+function idb() {
+  return new Promise((res, rej) => {
+    if (!window.indexedDB) return rej(new Error("no IndexedDB"));
+    const r = indexedDB.open("sloop-emu", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("flash");
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+    r.onblocked = () => rej(new Error("blocked"));
+    setTimeout(() => rej(new Error("IndexedDB did not answer")), 2500);   // some private modes never answer
+  });
+}
+const idbReq = (r) => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+async function flashLoad() {
+  try {
+    const db = await idb(), st = db.transaction("flash").objectStore("flash");
+    const [keys, vals] = await Promise.all([idbReq(st.getAllKeys()), idbReq(st.getAll())]);
+    return keys.map((index, i) => ({ index, bytes: vals[i] }));
+  } catch { persistFail(); return []; }
+}
+async function flashSave(sectors) {
+  if (resetting || !persistOk) return;
+  try {
+    const db = await idb(), tx = db.transaction("flash", "readwrite"), st = tx.objectStore("flash");
+    for (const s of sectors) st.put(s.bytes.buffer.slice(0), s.index);
+    await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = tx.onabort = () => rej(tx.error); });
+  } catch { persistFail(); }
+}
+async function flashClear() {
+  try { const db = await idb(), tx = db.transaction("flash", "readwrite"); tx.objectStore("flash").clear();
+        await new Promise((res) => { tx.oncomplete = res; tx.onerror = tx.onabort = res; }); } catch { /* nothing kept */ }
+}
+function persistFail() { persistOk = false; $("persist").textContent = "in memory only (saved data will not survive a reload)"; }
+$("reset").addEventListener("click", async () => {
+  if (!confirm("Forget all saved projects, presets, samples and settings, and start again from the factory settings?")) return;
+  resetting = true;
+  await flashClear();
+  location.reload();
+});
+
+// ---------------------------------------------------------------- toast
+let toastT = 0;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toastT);
+  toastT = setTimeout(() => { t.hidden = true; }, 4000);
+}
+
+// ---------------------------------------------------------------- modalities (D8)
+// Each adapter talks to the emulator only through the page <-> worklet messages (send / onFrame), so one can be swapped alone.
+const stamp = () => (performance.now() / 1000).toFixed(3);
+function logBox(id, limit) {
+  const box = $(id), lines = [];
+  let dirty = false;
+  setInterval(() => {
+    if (!dirty) return;
+    dirty = false;
+    const stick = box.scrollTop + box.clientHeight >= box.scrollHeight - 4;
+    box.textContent = lines.join("\n");
+    if (stick) box.scrollTop = box.scrollHeight;
+  }, 200);
+  return { add(s) { lines.push(s); if (lines.length > limit) lines.shift(); dirty = true; }, lines };
+}
+const outLog = logBox("logOut", 200), edLog = logBox("logEd", 200);
+const counts = { sysexIn: 0, sysexOut: 0, midiOut: 0 };
+
+const midiOutAdapter = {
+  asm: SloopPure.createSysexAsm(),
+  onFrame(m) {
+    if (!m.midiOut) return;
+    const hide = $("hideClock").checked;
+    for (const p of m.midiOut) {
+      const d = SloopPure.decodeMidiOut(p);
+      const sx = this.asm(p);
+      if (sx) { counts.sysexOut++; edLog.add(`${stamp()} sent SysEx, ${sx.len} bytes: ${sx.head}`); }
+      if (d.type === "sysex") continue;
+      counts.midiOut++;
+      if (hide && d.type === "clock") continue;
+      outLog.add(`${stamp()}  ${d.ch ? "ch" + String(d.ch).padStart(2) : "   "}  ${d.text}`);
+    }
+    modalities.refresh();
+  },
+};
+const editorAdapter = {
+  ignored(bytes) {
+    const i = SloopPure.sysexInfo(bytes);
+    counts.sysexIn++;
+    edLog.add(`${stamp()} ignored SysEx, ${i.len} bytes: ${i.head}`);
+    modalities.refresh();
+  },
+};
+const noAdapter = { onFrame() {} };
+
+// MIDI in: Web MIDI (D7)
+const midiAdapter = (function () {
+  const SAVE = "sloop-emu-midi";
+  let access = null, input = null, wantId = "", route = "usb", held = SloopPure.createHeld(), state = "none", pending = null;
+  const sel = $("midiIn"), stat = $("midiStat");
+  try { const s = JSON.parse(localStorage.getItem(SAVE) || "{}"); wantId = s.id || ""; route = s.route === "trs" ? "trs" : "usb"; } catch {}
+  document.querySelector(`input[name=route][value=${route}]`).checked = true;
+  const remember = () => { try { localStorage.setItem(SAVE, JSON.stringify({ id: wantId, route })); } catch {} };
+  const say = (s, bad) => { stat.textContent = s; stat.classList.toggle("err", !!bad); try { modalities.refresh(); } catch {} };   // (runs before the panel exists when Web MIDI is missing)
+  function post(bytes) {
+    if (SloopPure.isSysex(bytes)) { editorAdapter.ignored(bytes); return; }
+    SloopPure.trackNote(held, bytes);
+    if (route === "trs") send({ type: "midi", route: "trs", bytes: SloopPure.trsBytes(bytes) });
+    else { const p = SloopPure.usbPacket(bytes, 0); if (p !== null) send({ type: "midi", route: "usb", packets: [p] }); }
+  }
+  function releaseHeld() { for (const m of SloopPure.releaseAll(held)) post(m); }
+  function detach() { if (input) { input.onmidimessage = null; input = null; } }
+  function populate() {
+    const ins = access ? [...access.inputs.values()] : [];
+    sel.length = 1;
+    for (const i of ins) sel.add(new Option(i.name + (i.state === "connected" ? "" : " (disconnected)"), i.id));
+    if (wantId && !ins.some((i) => i.id === wantId)) sel.add(new Option("(saved device, disconnected)", wantId));
+    sel.value = wantId;
+    if (sel.value !== wantId) sel.value = "";
+  }
+  function attach() {
+    releaseHeld(); detach();
+    const i = access && wantId ? access.inputs.get(wantId) : null;
+    if (!wantId) { state = "none"; say(""); return; }
+    if (!i || i.state !== "connected") { state = "disconnected"; say("disconnected", true); return; }
+    input = i;
+    i.onmidimessage = (e) => post(e.data);
+    state = "connected";
+    say("connected: " + i.name);
+  }
+  function setAccess(a) {
+    access = a;
+    a.onstatechange = () => {
+      const was = state;
+      populate();
+      if (wantId) { const i = access.inputs.get(wantId); if (state === "connected" && (!i || i.state !== "connected")) attach(); else if (state === "disconnected" && i && i.state === "connected") attach(); }
+      void was;
+    };
+    populate(); attach();
+  }
+  function request() {
+    if (pending) return pending;
+    if (!navigator.requestMIDIAccess) return Promise.resolve(null);
+    say("asking the browser for MIDI access...");
+    pending = navigator.requestMIDIAccess({ sysex: false }).then((a) => { setAccess(a); return a; }, (err) => {
+      pending = null; state = "denied";
+      say("MIDI permission denied: " + (err && err.message || "no access") + ". The emulator works without MIDI.", true);
+      return null;
+    });
+    return pending;
+  }
+  if (!navigator.requestMIDIAccess) {
+    sel.disabled = true; state = "unsupported";
+    say(window.isSecureContext ? "Web MIDI not supported in this browser" : "Web MIDI needs a secure address: open http://localhost:PORT/, not [::] or 0.0.0.0", true);
+    document.querySelectorAll("input[name=route]").forEach((r) => (r.disabled = true));
+  } else {
+    for (const ev of ["pointerdown", "focus", "keydown"]) sel.addEventListener(ev, () => request(), { once: true });
+    sel.addEventListener("change", () => { wantId = sel.value; remember(); request().then(() => attach()); });
+    if (wantId) {                       // re-select a remembered device without a prompt, only if already permitted
+      if (navigator.permissions && navigator.permissions.query)
+        navigator.permissions.query({ name: "midi" }).then((p) => { if (p.state === "granted") request(); else { sel.add(new Option("(saved device: choose to reconnect)", wantId)); sel.value = wantId; } }, () => {});
+    }
+    document.querySelectorAll("input[name=route]").forEach((r) => r.addEventListener("change", () => {
+      releaseHeld(); route = r.value; remember(); modalities.refresh();
+    }));
+  }
+  return {
+    post, request,
+    get route() { return route; }, get state() { return state; },
+    describeIn(kind) {
+      if (state === "unsupported") return "Web MIDI is not supported in this browser.";
+      if (state === "denied") return "MIDI permission was denied; the emulator works without MIDI.";
+      const on = route === kind && state === "connected";
+      return on ? `Receiving from ${input.name}, routed as ${kind.toUpperCase()}.` : `Pick an input above and route it as ${kind.toUpperCase()}.`;
+    },
+  };
+})();
+
+const unavailable = (reason) => () => reason;
+const MODALITIES = [
+  { id: "midiInUsb", label: "MIDI in (USB)", state: "working", describe: () => midiAdapter.describeIn("usb"), adapter: midiAdapter },
+  { id: "midiInTrs", label: "MIDI in (TRS)", state: "working", describe: () => midiAdapter.describeIn("trs"), adapter: midiAdapter },
+  { id: "midiClock", label: "MIDI clock in", state: "working", describe: () => "Start, stop, continue and ticks follow the routed input when GLO > SYSTEM > SYNC matches it (USB or TRS).", adapter: midiAdapter },
+  { id: "midiOut", label: "MIDI out", state: "logged", describe: () => `Shown in the MIDI out log below (${counts.midiOut} messages); nothing is sent to a Web MIDI output.`, adapter: midiOutAdapter },
+  { id: "editorSysex", label: "Web editor SysEx", state: "logged", describe: () => `Counted in the editor log below (${counts.sysexIn} ignored in, ${counts.sysexOut} out); the editor connection is not emulated.`, adapter: editorAdapter },
+  { id: "usbAudio", label: "USB audio", state: "covered", describe: () => "The page's own sound output stands in for the USB audio stream.", adapter: noAdapter },
+  { id: "samples", label: "Sample upload and CHOP", state: "unavailable", describe: unavailable("Needs the web editor over USB, which the emulator does not have."), adapter: noAdapter },
+  { id: "backup", label: "Backup and restore", state: "unavailable", describe: unavailable("Done by the web editor over USB; use Factory reset here to clear the saved data."), adapter: noAdapter },
+  { id: "update", label: "Firmware update and UBOOT", state: "unavailable", describe: unavailable("No USB host, no bootloader: the OCT- + OCT+ combo only shows a notice."), adapter: noAdapter },
+  { id: "battery", label: "Battery level", state: "unavailable", describe: unavailable("No battery in the emulator: screens show the device's \"no reading\" state."), adapter: noAdapter },
+  { id: "console", label: "Serial console", state: "unavailable", describe: unavailable("There is no serial port in a browser."), adapter: noAdapter },
+];
+const modalities = {
+  refresh() {
+    const ul = $("modlist");
+    if (!ul.children.length) for (const m of MODALITIES) {
+      const li = document.createElement("li");
+      li.id = "mod-" + m.id;
+      li.innerHTML = '<span class="badge"></span><b></b><span class="desc"></span>';
+      ul.appendChild(li);
+    }
+    MODALITIES.forEach((m, i) => {
+      const li = ul.children[i], badge = li.children[0];
+      badge.className = "badge " + m.state;
+      badge.textContent = m.state === "unavailable" ? "not available" : m.state;
+      li.children[1].textContent = m.label;
+      li.children[2].textContent = m.describe();
+    });
+  },
+};
+modalities.refresh();
+
+// ---------------------------------------------------------------- frames from the worklet
+function onFrame(m) {
+  if (m.fb) drawScreen(m.fb);
+  drawLights(m.ledsBtn, m.ledsKey);
+  window.sloopLast = m;
+  if (m.peak > (window.sloopPeak || 0)) window.sloopPeak = m.peak;
+  if (m.load !== undefined) $("cpu").textContent = `SLOOP uses ${m.load}% of this computer's time`;
+  if (m.flash) flashSave(m.flash);
+  if (m.events & 1) toast("UBOOT is not available in the emulator");
+  new Set(MODALITIES.map((x) => x.adapter)).forEach((a) => a.onFrame && a.onFrame(m));
+}
+
+// ---------------------------------------------------------------- switching on
+const status = $("status");
+async function switchOn() {
+  const go = $("go");
+  go.disabled = true;
+  go.textContent = "Starting...";
+  try {
+    if (!window.AudioContext && !window.webkitAudioContext) throw new Error("this browser has no Web Audio");
+    const ac = window.sloopAc = new AudioContext({ sampleRate: 44100, latencyHint: "interactive" });
+    if (!window.isSecureContext) throw new Error("this address is not secure, so the browser turns off audio worklets. Open http://localhost:" + (location.port || 80) + "/ instead (not [::], 0.0.0.0 or a LAN address)");
+    if (!ac.audioWorklet) throw new Error("this browser has no AudioWorklet");
+    const src = SloopPure_source() + "\n" + $("worklet").textContent;
+    const url = URL.createObjectURL(new Blob([src], { type: "text/javascript" }));
+    const [wasm, flash] = await Promise.all([
+      MOCK ? null : fetch("sloop.wasm").then((r) => { if (!r.ok) throw new Error(`sloop.wasm: HTTP ${r.status}`); return r.arrayBuffer(); }),
+      flashLoad(), ac.audioWorklet.addModule(url).catch((e) => { throw new Error("worklet: " + (e && e.message || e)); }),
+    ]);
+    node = new AudioWorkletNode(ac, "sloop", { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] });
+    node.connect(ac.destination);
+    const ready = new Promise((res, rej) => {
+      node.port.onmessage = (e) => {
+        const m = e.data;
+        if (m.type === "ready") res(m);
+        else if (m.type === "error") rej(new Error(m.message));
+        else if (m.type === "frame") onFrame(m);
+      };
+    });
+    const msg = { type: "load", wasm, mock: MOCK, flash, master };
+    node.port.postMessage(msg, [...(wasm ? [wasm] : []), ...flash.map((s) => s.bytes)]);
+    const r = await ready;
+    $("version").textContent = "Firmware: " + r.version;
+    await ac.resume();
+    $("start").hidden = true;
+    status.textContent = ac.sampleRate === 44100 ? "On." : `On (the browser runs audio at ${ac.sampleRate} Hz).`;
+    syncButtons(); syncKeys();
+  } catch (err) {
+    node = null;
+    go.disabled = false;
+    go.textContent = "Switch on";
+    status.textContent = "Could not start: " + (err && err.message || err) + ". Chrome, Edge, Firefox and Safari should all work.";
+    status.classList.add("err");
+  }
+}
+function SloopPure_source() { return $("pure").textContent; }
+$("go").addEventListener("click", switchOn);
+if (MOCK) $("mockbadge").hidden = false;
+if (new URLSearchParams(location.search).get("autostart") === "1") switchOn();
+
+// Test hooks (used by the headless check): feed bytes through the same MIDI path as a device.
+window.sloopEmu = { injectMidi: (bytes) => midiAdapter.post(bytes), modalities: MODALITIES, outLog, edLog, counts };
+</script>
+</body>
+</html>

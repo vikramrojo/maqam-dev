@@ -16,7 +16,7 @@ Every file in this tree that carries an `SPDX-License-Identifier: GPL-3.0-only` 
 
 - the firmware: `firmware/` (app, HAL, update loader)
 - the build script and tools: `build.sh`, `tools/`
-- the web pages (installer, editor) and their tests: `web/` (not the Fukiai font, below)
+- the web pages (installer, editor, emulator) and their tests: `web/` (not the Fukiai font, below)
 - the host tests: `tests/`
 
 You may use, study, change and share it under the GPL. If you distribute Felucca, or
@@ -46,6 +46,7 @@ assets, is entirely governed by the GPL.
 | Terminus font 8x16 (ter-u16n) | SIL OFL 1.1 | `assets/fonts/ter-u16n.bdf`, `assets/fonts/Terminus-LICENSE.txt` |
 | Fukiai icon font (Hügelton Instruments), web editor only | MIT | `web/fukiai.ttf`, `web/FUKIAI-LICENSE.txt` |
 | CrispyZebra by Leo Kuroshita (<https://github.com/hugelton/CrispyZebra>): the PHASE engine's waveforms are a C port of its oscillator | GPL-3.0 | `firmware/src/eng_phase.c` |
+| fm1-x0x by Charles Vestal (<https://github.com/charlesvestal/fm1-x0x>), another Felucca descendant: the browser emulator's approach (the firmware's C compiled to WebAssembly, run in an AudioWorklet), the worklet structure and the SVG panel and input code adapted in `web/emu/index.html` | GPL-3.0-only | `web/emu/` |
 | klattsch by Tony Gies (<https://github.com/tgies/klattsch>): design reference for the VOICE (formant) engine; no code copied. Formant data from Klatt (1980) / Hillenbrand et al. (1995) | MIT (klattsch) | credit only |
 | JieLi AC79 SDK: `uboot.boot`, `cfg_tool.bin`, `eq_cfg_hw.bin` are read from your SDK checkout at build time and placed in the package; no SDK files are in this tree | Apache-2.0 | <https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK> |
 

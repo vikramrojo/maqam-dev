@@ -1,0 +1,3 @@
+# tests/hostapp_test.c and web/test_web.mjs: hash of the rendered output (the 24-bit ints)
+scenario 754ad385
+reboot b5ae7015

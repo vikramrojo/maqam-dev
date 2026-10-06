@@ -9,6 +9,8 @@
 //   and the user-sample pipeline byte for byte against tools/sampleio.py
 // - fm1pkg.js: productOf and logicalImage on build/felucca.fwsc (skipped without a build)
 // - fm1ota.js: a full install and an unplug during the write against a simulated FM-1
+// - build/emu/sloop.wasm (web/emu/build.sh; skipped without it): boots headless with no imports and renders
+//   the scenario of tests/hostapp_test.c, hash for hash against tests/golden_hostapp.txt
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -825,6 +827,98 @@ async function updater() {
   ok(e6 && /official FM-1 V15/.test(e6.message), "fm1pkg.js: only the exact official V15 is accepted (SHA-256)");
 }
 
+/* ------------------------------------------------------------ the emulator (build/emu/sloop.wasm) --- */
+/* tests/hostapp_test.c's scenario through the exports the page uses (web/emu/sloop_web.c); the same calls in
+ * the same order, so the hashes of the rendered 24-bit samples are the native ones. */
+async function emulator() {
+  const wasmPath = join(HERE, "..", "build", "emu", "sloop.wasm");
+  if (!existsSync(wasmPath)) { console.log("emulator: skipped (build/emu/sloop.wasm: run web/emu/build.sh)"); return; }
+  const bytes = readFileSync(wasmPath);
+  const golden = {};
+  for (const ln of readFileSync(join(HERE, "..", "tests", "golden_hostapp.txt"), "utf8").split("\n")) {
+    const m = /^(\w+) ([0-9a-f]{8})$/.exec(ln);
+    if (m) golden[m[1]] = m[2];
+  }
+  ok(WebAssembly.Module.imports(new WebAssembly.Module(bytes)).length === 0, "emulator: the module has no imports");
+  const B = { SEQ: 9, PLAY: 10 };
+  const boot = async (flash) => {
+    const { instance } = await WebAssembly.instantiate(bytes, {});
+    const x = instance.exports;
+    if (flash) new Uint8Array(x.memory.buffer, x.web_flash(), x.web_flash_size()).set(flash);
+    const dev = { x, h: 2166136261, peak: 0 };
+    dev.run = (ms) => {
+      let left = Math.floor(ms * 441 / 10);
+      while (left) {
+        const n = Math.min(left, 128);
+        x.web_render(n);
+        const l = new Float32Array(x.memory.buffer, x.web_out_l(), n);
+        const r = new Float32Array(x.memory.buffer, x.web_out_r(), n);
+        for (let i = 0; i < n; i++) {
+          const a = Math.round(l[i] * 8388608) | 0, b = Math.round(r[i] * 8388608) | 0;
+          dev.h = Math.imul(dev.h ^ a, 16777619) >>> 0;
+          dev.h = Math.imul(dev.h ^ b, 16777619) >>> 0;
+          dev.peak = Math.max(dev.peak, Math.abs(a));
+        }
+        left -= n;
+      }
+    };
+    dev.keytap = (k) => { x.web_keys(1 << k); dev.run(60); x.web_keys(0); dev.run(60); };
+    dev.btntap = (b) => { x.web_buttons(1 << b); dev.run(60); x.web_buttons(0); dev.run(60); };
+    dev.fourBars = () => {
+      dev.btntap(B.PLAY);
+      x.web_midi_usb((0x09 | 0x90 << 8 | 48 << 16 | 100 << 24) >>> 0);
+      for (const b of [0x91, 52, 100, 55, 100]) x.web_midi_trs(b);     /* running status */
+      dev.run(10667);
+    };
+    return dev;
+  };
+  const hex = (h) => (h >>> 0).toString(16).padStart(8, "0");
+
+  const a = await boot();
+  a.x.web_boot();
+  a.run(1200);
+  for (let k = 0; k < 3; k++) { a.x.web_enc(1, 1); a.run(40); }
+  a.x.web_buttons(1 << B.SEQ);
+  a.run(200);
+  a.keytap(0); a.keytap(7); a.keytap(14);
+  a.x.web_buttons(0);
+  a.run(100);
+  a.btntap(B.PLAY); a.btntap(B.PLAY);
+  a.fourBars();
+  ok(hex(a.h) === golden.scenario, `emulator: wasm render of the scenario = the native golden (${hex(a.h)})`);
+  ok(a.peak > 100000 && a.peak < 4194304, "emulator: the render has sound, below the -6 dBFS ceiling");
+  const mem = new Uint8Array(a.x.memory.buffer);
+  let vend = a.x.web_version();
+  while (mem[vend]) vend++;
+  const version = Buffer.from(mem.subarray(a.x.web_version(), vend)).toString();
+  ok(/^SLOOP \d+\.\d+/.test(version) && a.x.web_flash_size() === 1 << 20, `emulator: version "${version}", 1 MiB flash`);
+  const fb = new Uint16Array(a.x.memory.buffer, a.x.web_fb(), 240 * 240);
+  ok(fb.some((v) => v !== 0) && a.x.web_blits() > 10, "emulator: the screen was drawn");
+  a.x.web_midi_usb((0x08 | 0x80 << 8 | 48 << 16) >>> 0);
+  for (const v of [0x81, 52, 0, 55, 0]) a.x.web_midi_trs(v);
+  a.run(500);
+  a.btntap(B.PLAY);
+  a.run(25100);                                     /* idle: the autosave writes the working project */
+  const dirty = new Uint32Array(a.x.memory.buffer, a.x.web_flash_dirty(), 8);
+  ok(dirty.some((v) => v !== 0), "emulator: the autosave marked flash sectors dirty");
+  const image = new Uint8Array(a.x.memory.buffer, a.x.web_flash(), a.x.web_flash_size()).slice();
+  a.x.web_flash_clean();
+  ok(dirty.every((v) => v === 0), "emulator: web_flash_clean");
+
+  const b = await boot(image);                      /* power on again with that flash */
+  b.x.web_boot();
+  b.run(1200);
+  b.fourBars();
+  ok(hex(b.h) === golden.reboot, `emulator: after a reboot from the saved flash = the native golden (${hex(b.h)})`);
+
+  const c = await boot();                           /* the UBOOT combo: an event bit, no reset */
+  c.x.web_boot();
+  c.run(1200);
+  c.x.web_buttons(1 << 12 | 1 << 13);
+  c.run(5400);
+  ok(c.x.web_events() === 1 && c.x.web_events() === 0, "emulator: OCT- + OCT+ for 5 s: the UBOOT event bit, read once");
+}
+
 await editorMock();
 await editorLibrarian();
 await editorLive();
@@ -839,5 +933,6 @@ samplesMatch();
 chopTests();
 await packages();
 await updater();
+await emulator();
 console.log(failed ? `WEB TESTS FAILED (${failed})` : "web tests passed");
 process.exit(failed ? 1 : 0);

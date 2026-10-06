@@ -66,6 +66,7 @@ SLOOP is free and open source (GPL-3.0), based on [Felucca](https://github.com/h
 14. [Your own samples](#your-own-samples-usr1usr3)
 15. [Song mode](#song-mode)
 16. [The web editor](#the-web-editor)
+    and [the emulator](#the-emulator-try-it-in-your-browser)
 17. [Sound design pages](#sound-design-pages)
 18. [MIDI keyboards](#midi-keyboards)
 19. [USB audio: record on a computer](#usb-audio-record-on-a-computer)
@@ -340,6 +341,16 @@ Open it from the installer page, or with **`OPEN-EDITOR.bat`** (`http://localhos
 - **Backup** (Projects tab): **Save a backup** writes everything on the FM-1 to one file (SLOOP-backup-DATE.json): the music you are working on, the projects 1–4 (the song sections A–D), the 32 user presets, the samples USR1–3 and the settings (colours, calibration, the song order, the lights, SYNC). **Restore from a file** puts it all back — what is on the FM-1 is replaced. A damaged file is refused before anything is written, every object is checked as a load checks it, and each one is written as a save writes it (a cut-off restore never leaves half an object). Stop the song (PLAY) before restoring.
 
 The protocol is documented in [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md) (v6).
+
+## The emulator: try it in your browser
+
+The emulator runs the real SLOOP firmware, compiled to WebAssembly, in a web page: the same UI, sequencer, sounds and storage as the FM-1, with a drawing of the panel. No FM-1 needed. Open `webapp/emu/` of the site (in the repository: `docs/webapp/emu/`) and press **Start**.
+
+- **Controls:** click, touch (several fingers: chords) or the mouse wheel on a knob. **Shift-click** or **right-click** a button holds it, so you can use other controls meanwhile (like holding a layer on the FM-1).
+- **Computer keyboard:** white keys **Q–I** and **A–K**; black keys **1–0** and **-**; **Space** PLAY, **Enter** REC, **Z** / **X** OCT− / OCT+, **Esc** HOME, **↑** / **↓** SELECT. Layer buttons: **,** FX, **.** SCL, **/** ENV, **;** LFO, **'** EDIT, **\\** GLO, **[** SAVE, **]** ARP, **=** SEQ. The page lists the map.
+- **MIDI in:** pick a MIDI input in the page (Chrome or Edge). Route it as **USB** or **TRS** MIDI. Notes follow the channel rules of [MIDI keyboards](#midi-keyboards). Clock, start and stop are followed when SYNC (GLO > SYSTEM) matches the route.
+- **Not the same:** MIDI out and the web editor's SysEx are only shown in a log. USB audio is the page's own sound. Samples upload and CHOP, backup, firmware update and UBOOT, the battery and the serial console are not available (the page says so). The emulator does not shed voices when the browser is slow: it may drop out instead.
+- **Your data** (projects, presets, settings, samples) is kept in the browser (IndexedDB) and survives a reload. **Reset** on the page erases it. In a private window nothing is kept.
 
 ## Sound design pages
 

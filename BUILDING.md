@@ -62,6 +62,20 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
 | `FELUCCA_UAC` | 1 | USB audio input: the master output, 44.1 kHz stereo (after Felucca 1.0) |
 | `FELUCCA_UART` | 1 | TRS MIDI IN (the 3.5 mm jack) |
 
+## Web emulator
+
+`sh web/emu/build.sh` builds `build/emu/sloop.wasm` (the firmware's sources plus a host HAL, freestanding, no
+imports) and copies `web/emu/index.html` next to it. To try it: `python3 -m http.server 8000 --bind 127.0.0.1 -d build/emu`
+and open `http://localhost:8000/` (not the `[::]` or `0.0.0.0` address the server prints: the browser turns audio
+worklets and Web MIDI off there). It needs clang with the `wasm32`
+target (Apple clang has it), `wasm-ld` (macOS: `brew install lld`) and the generated headers in `build/gen`
+(Pillow, as the build above). `python3 web/make_site.py` copies both into `webapp/emu/` of the site, and leaves
+the emulator out (with a notice) if the wasm is not built. It does not need the JieLi toolchain.
+
+Tests: `tests/hostapp_test` (native, in `tests/run_tests.sh`; the golden is `tests/golden_hostapp.txt`),
+`node web/test_web.mjs` (also renders the golden scenario from the wasm and compares), `node web/emu/test_page.mjs`
+(the page).
+
 ## Samples
 
 The CC0 instrument samples that the SAMPLE engine uses are in `assets/samples-cc0/`

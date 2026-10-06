@@ -7,6 +7,7 @@
   firmware/felucca-VER.fwsc   the package
   webapp/installer/index.html index_pkg.html with fm1pkg.js, fm1ota.js and the metadata inlined
   webapp/editor/index.html    editor.html (+ fukiai.ttf, FUKIAI-LICENSE.txt)
+  webapp/emu/                 the emulator: web/emu/index.html + build/emu/sloop.wasm (skipped if web/emu/build.sh has not run)
   src/                        not touched
 
   web/make_site.py build/felucca-X.Y.fwsc X.Y OUT_DIR [--beta]
@@ -56,6 +57,10 @@ def main(pkg, version, out):
     html = html.replace("/*LIB*/", lib).replace("/*META*/", meta)
     logo = HERE.parent / "assets" / "logo" / "sloop-logo.svg"     # the SLOOP logo, inline
     html = html.replace("<!--LOGO-->", logo.read_text(encoding="utf-8") if logo.exists() else "<b>SLOOP</b>")
+    emu_src, wasm = HERE / "emu" / "index.html", HERE.parent / "build" / "emu" / "sloop.wasm"
+    has_emu = emu_src.exists() and wasm.exists()    # optional: the emulator needs web/emu/build.sh first
+    if not has_emu:
+        print(f"site: no emulator ({wasm} not found: run web/emu/build.sh)")
     inst, ed, fw = out / "webapp" / "installer", out / "webapp" / "editor", out / "firmware"
     for d in (inst, ed, fw):
         d.mkdir(parents=True, exist_ok=True)
@@ -75,6 +80,11 @@ def main(pkg, version, out):
     (inst / "index.html").write_text(html, encoding="utf-8")
     shutil.copy(pkg, fw / name)
     shutil.copy(HERE / "editor.html", ed / "index.html")
+    if has_emu:
+        emu = out / "webapp" / "emu"
+        emu.mkdir(parents=True, exist_ok=True)
+        shutil.copy(emu_src, emu / "index.html")
+        shutil.copy(wasm, emu / "sloop.wasm")
     for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt"):
         if (HERE / f).exists():
             shutil.copy(HERE / f, ed / f)
@@ -82,7 +92,8 @@ def main(pkg, version, out):
         '<!doctype html><meta charset="utf-8"><title>SLOOP</title>'
         '<meta http-equiv="refresh" content="0; url=webapp/installer/">'
         '<a href="webapp/installer/">SLOOP installer</a>\n', encoding="utf-8")
-    print(f"site: {out}: webapp/installer ({len(html)} B), webapp/editor, firmware/{name} ({len(raw)} B, {product})")
+    emu_note = f"webapp/emu ({wasm.stat().st_size} B wasm)" if has_emu else "no emu"
+    print(f"site: {out}: webapp/installer ({len(html)} B), webapp/editor, {emu_note}, firmware/{name} ({len(raw)} B, {product})")
 
 
 if __name__ == "__main__":
