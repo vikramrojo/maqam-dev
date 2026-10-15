@@ -55,7 +55,8 @@ jobs:
 
       - name: Build the firmware
         run: |
-          ./build.sh 2>&1 | tee build.log
+          set -o pipefail
+          sh build.sh 2>&1 | tee build.log
           ls -l build/felucca.fwsc build/felucca.bin
 
       - name: Host tests
