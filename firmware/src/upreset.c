@@ -82,9 +82,18 @@ static void up_name(uint32_t k, char *b)       /* upper case, 0-terminated: b ho
     b[i] = 0;
 }
 
+/* the editor's wire is 7 bits a byte: the quarter-tone flags of the 16 pattern notes travel as a 16-bit mask,
+ * 3 bytes after the pattern in UP_GET / UP_PUT (an older editor ignores them, an older one sends none) */
+static uint32_t up_qmask(const uint8_t *note)
+{
+    uint32_t i, m = 0;
+    for (i = 0; i < 16u; i++)
+        m |= (uint32_t)(note[i] >> 7) << i;
+    return m;
+}
 static void up_pat_norm(uint8_t *note, uint8_t *flags)   /* tie: no note; rest: no flags */
 {
-    *note &= 127u;
+    /* maqam: a note keeps its quarter-tone flag (bit 7) in the record: UP_VER stays 1, the byte was always 8 bits */
     if (*flags & 4u) {
         *note = 0;
         *flags = 4;
@@ -136,9 +145,15 @@ static int up_parse(const uint8_t *a, uint32_t na, up_rec_t *r, uint32_t *slot)
     for (i = 0; i < P_COUNT; i++, k += 2u)
         r->p[i] = (int16_t)((int32_t)((a[k] & 127u) | (a[k + 1] & 127u) << 7) - 8192);
     for (i = 0; i < 16u; i++, k += 2u) {
-        r->note[i] = a[k];
+        r->note[i] = a[k] & 127u;                /* maqam: the flag comes with the mask below */
         r->flags[i] = a[k + 1];
         up_pat_norm(&r->note[i], &r->flags[i]);
+    }
+    if (na >= k + 3u) {                          /* maqam: the quarter-tone mask (a newer editor) */
+        uint32_t m = (uint32_t)(a[k] & 127u) | (uint32_t)(a[k + 1] & 127u) << 7 | (uint32_t)(a[k + 2] & 3u) << 14;
+        for (i = 0; i < 16u; i++)
+            if ((m >> i) & 1u && r->note[i])
+                r->note[i] |= 0x80u;
     }
     return 0;
 }
@@ -237,12 +252,11 @@ static int up_store(uint32_t k, const char *name)
  * PAN, MUTE: the TRACKS faders) and its pattern parameters (param_kept). LIVE: the pattern
  * stored in the record is not loaded: changing the sound never changes the sequence.
  * 0 ok, 1 empty (or the drum track is selected) */
-static int up_load(uint32_t k)
+static int up_load_to(track_t *t, uint32_t k)       /* user preset k into track t (2.6: any track, MIDI PC) */
 {
     const up_rec_t *r;
     int16_t v[P_COUNT];
     uint32_t i;
-    track_t *t = TSEL;
     if (!up_used(k) || is_drum(t))
         return 1;
     r = up_rec(k);
@@ -250,18 +264,22 @@ static int up_load(uint32_t k)
     for (i = 0; i < P_COUNT; i++)                       /* (LEN etc. of a kept pattern changed too, and */
         if (param_kept(i))                              /* a preset pattern then counted as edited) */
             v[i] = t->p[i];
-    panic_req |= (uint8_t)(1u << song.sel);
+    sound_change(t);                                    /* (2.6: what sounds fades out with the old sound, no click) */
+    panic_req |= (uint8_t)(1u << trk_index(t));
     fm1_irq_off();                                      /* the audio ISR must not see half a sound */
     t->eng_req = r->engine;
     for (i = 0; i < P_COUNT; i++)
         t->p[i] = v[i];
     t->preset = 0;
     fm1_irq_on();
+    fm6_track_loaded(t);                                /* FM6: a user preset holds the PTCH and the macros */
     t->user = (uint8_t)(k + 1u);
-    sync_reload = 1;
+    if (t == TSEL)
+        sync_reload = 1;
     ui.force = 1;
     return 0;
 }
+static int up_load(uint32_t k) { return up_load_to(TSEL, k); }   /* into the selected track */
 
 static uint32_t up_count(void)                 /* used slots */
 {

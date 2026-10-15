@@ -4,16 +4,26 @@
  * tools/gen_samples.py GM_KIT), played by its step pattern, the keys when track 4
  * is selected, and its own MIDI channel (GLO -> DRUMS, default 10). Its own voices
  * (outside the parts' voice budget). One-shots: note-offs are ignored; a closed or
- * pedal hi-hat chokes the open one. LEVEL / REV: GLO > DRUMS (G_DRLVL, G_DRREV);
+ * pedal hi-hat chokes the open one. LEVEL / REV / DLY: GLO > DRUMS (G_DRLVL, G_DRREV, G_DRDLY);
  * PAN and MUTE: the drum track's P_PAN / P_MUTE. Rendered from the audio ISR. */
 #define NDRUM 6
 #include "drum_synth.c"       /* synthesised kits (DS_KITS) */
 /* P_E0 was unused on the drum track: it holds the kit. 0..4: the GM sample kit and its four
- * treatments (as before: old projects keep their kit), 5..: the synthesised kits. */
+ * treatments (as before: old projects keep their kit), 5..: the synthesised kits, then (2.4) USR1..USR4:
+ * a user sample slot as a kit (the web editor's DRUM KIT: a sound per lane, zone lo..hi = the lane's note),
+ * and USR3+4: one kit over the slots USR3 and USR4 (a lane's sound in either) */
 #define DRUM_SAMPLED 5u
-#define DRUM_KITS (DRUM_SAMPLED + DS_NKITS)
-static const char *const DRUM_KIT_NAMES[] = {"ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", DS_KIT_NAME_LIST};
-static const char *const DRUM_KIT_STYLES[] = {"STUDIO", "SOFT", "PUNCHY", "BRIGHT", "DUSTY", DS_KIT_STYLE_LIST};
+#define DRUM_USR (DRUM_SAMPLED + DS_NKITS)
+#define DRUM_PAIR (DRUM_USR + SMP_USER_SLOTS)   /* USR3+4: one kit in two slots (the editor splits it), ~15 s */
+#define DRUM_SYN (DRUM_PAIR + 1u)                /* SLOOP 2.5: SYN1..SYN4, your synthesised kits (drum_synth.c dsu) */
+#define DRUM_KITS (DRUM_SYN + DSU_N)
+static const char *const DRUM_KIT_NAMES[] = {"ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", DS_KIT_NAME_LIST,
+                                             "USR1", "USR2", "USR3", "USR4", "USR3+4",
+                                             "SYN1", "SYN2", "SYN3", "SYN4"};
+static const char *const DRUM_KIT_STYLES[] = {"STUDIO", "SOFT", "PUNCHY", "BRIGHT", "DUSTY", DS_KIT_STYLE_LIST,
+                                              "YOUR KIT", "YOUR KIT", "YOUR KIT", "YOUR KIT", "BIG KIT",
+                                              "YOUR SYNTH", "YOUR SYNTH", "YOUR SYNTH", "YOUR SYNTH"};
+_Static_assert(sizeof(DRUM_KIT_NAMES) / sizeof(DRUM_KIT_NAMES[0]) == DRUM_KITS, "a name per kit");
 static uint32_t drum_kit(void) { return (uint32_t)clamp(TDRUM->p[P_E0], 0, DRUM_KITS - 1); }
 #define DRUM_DEFAULT_KIT DRUM_SAMPLED   /* power-on: 808 */
 
@@ -105,6 +115,23 @@ static void dstep_clr(dstep_t *s, uint32_t l)                                /* 
     s->rat[b] &= (uint8_t)~(3u << sh);
 }
 
+/* the zone a sampled drum voice plays (drum_on: v->s[4]): SMP_ZONES[i], or a user kit's, DZ_USR + slot * 16 + zone */
+#define DZ_USR (1 << 16)                 /* (above every SMP_ZONES index) */
+static const smp_zone_t *drum_zone_of(const voice_t *v)
+{
+    int32_t z = v->s[4];
+    return z >= DZ_USR ? &usr_zone[((uint32_t)(z - DZ_USR) >> 4) % SMP_USER_SLOTS][(uint32_t)z & 15u] : &SMP_ZONES[(uint32_t)z];
+}
+/* a user kit (KIT USR1..3): the zone of slot k for the lane note ln (the lane's GM note), -1 = none */
+static int32_t drum_usr_zone(uint32_t k, uint32_t ln)
+{
+    uint32_t j;
+    for (j = 0; j < usr_nz[k] && j < 16u; j++)
+        if (ln >= usr_zone[k][j].lo && ln <= usr_zone[k][j].hi)
+            return DZ_USR + (int32_t)(k * 16u + j);
+    return -1;
+}
+
 /* the velocity of a level: as played (LV_NORM: vel), ghost, soft, hard */
 static uint32_t lvl_vel(uint32_t lvl, uint32_t vel)
 {
@@ -117,52 +144,130 @@ static uint32_t vel_lvl(uint32_t vel)
     return vel < 56u ? LV_GHOST : vel < 88u ? LV_SOFT : vel < 116u ? LV_NORM : LV_HARD;
 }
 
+/* the metronome (GLO > GLOBAL > CLICK, and the REC count-in), 2.4.1: a voice of its own, mixed after the drum
+ * track (fx.c mix_block), so it is heard with every kit (a user kit has no wood block: it was silent), whatever
+ * the drum track's mute, a solo, its filter or slicer. A short sine tick: 1568 Hz on a bar's first beat, 1047 Hz
+ * on the others, about 12 ms to fade by 1/e; its level follows GLO > DRUMS > LVL (100: as loud as the old
+ * wood block). It costs a few hundred cycles a block while it sounds, nothing after */
+static struct { uint32_t ph, inc; int32_t env, gain; } click;   /* env: Q30, 0 = silent */
+static uint32_t click_n;                         /* clicks so far, and the last one's accent (the host tests count them) */
+static uint8_t click_acc;
+static void click_on(int accent)
+{
+    click.ph = 0;
+    click.inc = accent ? (uint32_t)(((uint64_t)1568u << 32) / FS) : (uint32_t)(((uint64_t)1047u << 32) / FS);
+    click.gain = accent ? 20000 : 12000;
+    click.env = 1 << 30;
+    click_acc = (uint8_t)(accent != 0);
+    click_n++;
+}
+static void click_render(int32_t *ml, int32_t *mr, uint32_t n)
+{
+    uint32_t i;
+    int32_t g;
+    if (!click.env)
+        return;
+    g = (int32_t)((int64_t)click.gain * song.g[G_DRLVL] / 100);
+    for (i = 0; i < n; i++) {
+        int32_t v = (int32_t)(((int64_t)sine_i(click.ph) * (click.env >> 15) >> 15) * g >> 15);
+        ml[i] += v;
+        mr[i] += v;
+        click.ph += click.inc;
+        click.env -= click.env >> 9;                 /* about 12 ms to 1/e */
+    }
+    if (click.env < (1 << 18))
+        click.env = 0;                                /* (-72 dB: done, about 100 ms) */
+}
+
+/* a synthesised voice: note on the 16 sounds snd (a factory kit, SYN1..4), the oldest voice stolen */
+static void __attribute__((noinline)) drum_synth_on(uint32_t note, uint32_t vel, uint32_t kit, const dsnd_t *snd, uint32_t crush)
+{
+    voice_t *v = &drums.v[0];
+    uint32_t i;
+    if (note == 42u || note == 44u)                 /* hi-hat choke */
+        for (i = 0; i < NDRUM; i++)
+            if (drums.v[i].active && drums.v[i].note == 46u) {
+                drums.v[i].active = 0;
+                drums.tail += drums.v[i].s[7];
+            }
+    for (i = 0; i < NDRUM; i++) {
+        if (!drums.v[i].active) {
+            v = &drums.v[i];
+            break;
+        }
+        if (drums.v[i].age < v->age)
+            v = &drums.v[i];
+    }
+    if (v->active)
+        drums.tail += v->s[7];
+    i = (uint32_t)(v - drums.v);
+    v->note = (uint8_t)note;
+    v->vel = (uint8_t)vel;
+    v->active = 1;
+    v->s[7] = 0;
+    v->age = ++drums.age;
+    drums.synth[i] = 1;
+    drums.kit[i] = (uint8_t)kit;
+    ds_on(&drums.ds[i], snd, crush, note, vel);
+}
+/* the editor's audition (editor_dsyn.c DSYN_PLAY): queued, played by the audio ISR (drum_audition_poll) */
+static volatile uint8_t dsu_aud_k, dsu_aud_lane, dsu_aud_vel;
+static void drum_audition_poll(void)
+{
+    uint32_t vel = dsu_aud_vel;
+    if (!vel)
+        return;
+    dsu_aud_vel = 0;
+    {
+        const dsu_kit_t *u = dsu_kit(dsu_aud_k);
+        drum_synth_on(DS_LANE_NOTE[dsu_aud_lane % DS_LANES], vel, DRUM_SYN + dsu_aud_k % DSU_N, u->s, u->crush);
+    }
+}
+
 static void drum_on(uint32_t note, uint32_t vel)
 {
     int32_t si = drum_set();
     const smp_set_t *set;
     voice_t *v = &drums.v[0];
     uint32_t i, zi = 0xFFFFu, kit = drum_kit();
+    int32_t zid = -1;
     if (note != 76u && note != 77u)                 /* the pads and key LEDs (not the click's wood block) */
         drums.hits |= (uint16_t)(1u << lane_of_note(note));
     if (note == 35u || note == 36u)
         drums.kick = 1;                             /* (DUCK) */
-    if (kit >= DRUM_SAMPLED) {                      /* synthesised kit */
-        if (note == 42u || note == 44u)             /* hi-hat choke */
-            for (i = 0; i < NDRUM; i++)
-                if (drums.v[i].active && drums.v[i].note == 46u) {
-                    drums.v[i].active = 0;
-                    drums.tail += drums.v[i].s[7];
-                }
-        for (i = 0; i < NDRUM; i++) {
-            if (!drums.v[i].active) {
-                v = &drums.v[i];
-                break;
-            }
-            if (drums.v[i].age < v->age)
-                v = &drums.v[i];
-        }
-        if (v->active)
-            drums.tail += v->s[7];
-        i = (uint32_t)(v - drums.v);
-        v->note = (uint8_t)note;
-        v->vel = (uint8_t)vel;
-        v->active = 1;
-        v->s[7] = 0;
-        v->age = ++drums.age;
-        drums.synth[i] = 1;
-        drums.kit[i] = (uint8_t)kit;
-        ds_on(&drums.ds[i], &DS_KITS[kit - DRUM_SAMPLED], note, vel);
+    if (kit >= DRUM_SYN) {                          /* SYN1..SYN4: your synthesised kit */
+        const dsu_kit_t *u = dsu_kit(kit - DRUM_SYN);
+        drum_synth_on(note, vel, kit, u->s, u->crush);
         return;
     }
-    if (si < 0)
+    if (kit >= DRUM_USR) {                          /* a user kit: the lane's sound, as its note (the hat choke) */
+        if (note == 76u || note == 77u)
+            return;                                 /* (the click's wood block: not a lane) */
+        note = LANE_NOTE[lane_of_note(note)];
+        if (kit == DRUM_PAIR) {                     /* USR3+4: the lane's sound in USR3, else in USR4 */
+            zid = drum_usr_zone(2, note);
+            if (zid < 0)
+                zid = drum_usr_zone(3, note);
+        } else {
+            zid = drum_usr_zone(kit - DRUM_USR, note);
+        }
+        if (zid < 0)
+            return;                                 /* (an empty slot, or no sound on this lane) */
+    } else if (kit >= DRUM_SAMPLED) {               /* synthesised kit */
+        drum_synth_on(note, vel, kit, DS_KITS[kit - DRUM_SAMPLED].s, DS_KITS[kit - DRUM_SAMPLED].crush);
         return;
-    set = &SMP_SETS[si];
-    for (i = 0; i < set->nz; i++)
-        if (note >= SMP_ZONES[set->z0 + i].lo && note <= SMP_ZONES[set->z0 + i].hi)
-            zi = set->z0 + i;
-    if (zi == 0xFFFFu)
-        return;
+    }
+    if (zid < 0) {                                  /* the GM sample kit */
+        if (si < 0)
+            return;
+        set = &SMP_SETS[si];
+        for (i = 0; i < set->nz; i++)
+            if (note >= SMP_ZONES[set->z0 + i].lo && note <= SMP_ZONES[set->z0 + i].hi)
+                zi = set->z0 + i;
+        if (zi == 0xFFFFu)
+            return;
+        zid = (int32_t)zi;
+    }
     if (note == 42u || note == 44u)                 /* hi-hat choke */
         for (i = 0; i < NDRUM; i++)
             if (drums.v[i].active && drums.v[i].note == 46u) {
@@ -184,11 +289,14 @@ static void drum_on(uint32_t note, uint32_t vel)
     v->active = 1;
     v->s[7] = 0;
     v->age = ++drums.age;
-    v->s[4] = (int32_t)zi;
+    v->s[4] = zid;
     v->ph[0] = v->ph[1] = 0;
     v->s[0] = v->s[1] = v->s[2] = 0;
-    v->s[3] = sample_next(&SMP_ZONES[zi], v, 0);
-    v->s[5] = (int32_t)((pow2_q16((int32_t)note * 16 - SMP_ZONES[zi].root16) >> 8) * (SMP_ZONES[zi].rate >> 8));
+    {
+        const smp_zone_t *z = drum_zone_of(v);
+        v->s[3] = sample_next(z, v, 0);
+        v->s[5] = (int32_t)((pow2_q16((int32_t)note * 16 - z->root16) >> 8) * (z->rate >> 8));
+    }
     {
         uint32_t vi = (uint32_t)(v - drums.v);
         int32_t shift = kit == 1u ? (note <= 36u ? -5 : -2) : kit == 3u ? 2 : kit == 4u ? -1 : 0;
@@ -200,12 +308,13 @@ static void drum_on(uint32_t note, uint32_t vel)
     }
 }
 
-/* adds the drums into the dry mix and the reverb send; mono != 0: into mono instead, before the
- * pan and the send (the SLICER, slicer.c slicer_drums, does those after it) */
-static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mono, uint32_t n)
+/* adds the drums into the dry mix and the reverb and delay sends; mono != 0: into mono instead, before
+ * the pan and the sends (the SLICER, slicer.c slicer_drums, does those after it) */
+static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dly, int32_t *mono, uint32_t n)
 {
     uint32_t k, i;
-    int32_t lvl = song.g[G_DRLVL] * 200, send = song.g[G_DRREV] * 258, pk = drums.peak;
+    int32_t lvl = song.g[G_DRLVL] * 200, send = send_thr(song.g[G_DRREV] * 258, thr_rev),
+            dsend = send_thr(song.g[G_DRDLY] * 258, thr_dly), pk = drums.peak;   /* (2.6: the THROWs) */
     int32_t pan = trk[TRK_DRUM].p[P_PAN], gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
     for (i = 0; i < n && drums.tail; i++) {         /* declick tail, ~0.4 ms */
         if (mono) {
@@ -236,6 +345,8 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mo
             mr[i] += (s * gr) >> 12;
             if (send)
                 rev[i] += mulq15(s, send);
+            if (dsend)
+                dly[i] += mulq15(s, dsend);
         }
         if (!v->active) {
             drums.tail += v->s[7];                  /* ended: no step at the end */
@@ -244,9 +355,10 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mo
     }
     for (k = 0; k < NDRUM; k++) {
         voice_t *v = &drums.v[k];
-        const smp_zone_t *z = &SMP_ZONES[v->s[4]];
+        const smp_zone_t *z;
         if (drums.synth[k])
             continue;
+        z = drum_zone_of(v);
         uint32_t frac = v->ph[1], stepq = (uint32_t)v->s[5];   /* Q16 source samples per output (drum_on) */
         int32_t g;
         if (!v->active)
@@ -289,10 +401,12 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mo
             mr[i] += (s * gr) >> 12;
             if (send)
                 rev[i] += mulq15(s, send);
+            if (dsend)
+                dly[i] += mulq15(s, dsend);
         }
         v->ph[1] = frac;
     }
     drums.peak = pk;
 }
-static void drums_render(int32_t *ml, int32_t *mr, int32_t *rev, uint32_t n) { drums_mix(ml, mr, rev, 0, n); }
-static void drums_render_mono(int32_t *mono, uint32_t n) { drums_mix(0, 0, 0, mono, n); }
+static void drums_render(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *dly, uint32_t n) { drums_mix(ml, mr, rev, dly, 0, n); }
+static void drums_render_mono(int32_t *mono, uint32_t n) { drums_mix(0, 0, 0, 0, mono, n); }

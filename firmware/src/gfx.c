@@ -7,10 +7,13 @@ typedef struct {               /* proportional, see tools/gen_font.py */
     uint8_t h;
     uint8_t pad;               /* bitmap starts this many pixels left of the pen */
     uint8_t first, last;
+    uint8_t sh;                /* 1: the bitmaps are another font's, drawn at 2x (L = S at 2x, no copy) */
     const uint8_t *adv;        /* advance per glyph */
     const uint8_t *bw;         /* bitmap width per glyph (starts FONT_PAD left of the pen) */
     const uint16_t *off;       /* byte offset of each glyph */
     const uint8_t *data;
+    uint8_t bits;              /* SLOOP 2.6: 1 = 1 bit a pixel (a pixel font: glyph rows one after the other, high
+                                * bit first, each glyph from a whole byte); 0 = 2 pixels a byte, alpha 0..15 */
 } felucca_font_t;
 #include "felucca_font.h"
 
@@ -120,11 +123,12 @@ static void cv_line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t c)
     }
 }
 
-/* glyph index of a character: lower case folds to upper case when the font
- * has none, anything missing (and C1 controls) draws as '?' */
+/* glyph index of a character: the screen shows capitals only (SLOOP 2.6: bold capitals read better on the
+ * small screen), so lower case folds to upper case, Latin-1 too (\xfc -> \xdc; not the division sign, nor sharp
+ * s and y diaeresis, which have none); anything missing (and C1 controls) draws as '?' */
 static uint32_t glyph(const felucca_font_t *f, uint32_t ch)
 {
-    if (ch >= 'a' && ch <= 'z' && f->last < 'a')
+    if ((ch >= 'a' && ch <= 'z') || (ch >= 0xE0u && ch <= 0xFEu && ch != 0xF7u))
         ch -= 32u;
     if (ch < f->first || ch > f->last || (ch >= 127u && ch < 160u))
         ch = '?';
@@ -139,15 +143,40 @@ static int32_t cv_text(int32_t x, int32_t y, const felucca_font_t *f, const char
     for (a = 0; a < 16u; a++)
         ramp[a] = (uint16_t)(((r * a / 15u) << 11) | ((g * a / 15u) << 5) | (b * a / 15u));
     for (; *s; s++) {
+        if ((uint8_t)*s >= 1u && (uint8_t)*s <= 4u) {   /* maqam: the half-flat (1), half-sharp (2), up (3) and down (4) arrow glyphs, 8 x 16 at 1 bit, scaled as the font */
+            static const uint8_t QG[4][16] = {
+                {0x00, 0x00, 0x02, 0x02, 0x02, 0x02, 0x02, 0x1A, 0x26, 0x42, 0x42, 0x26, 0x1A, 0x02, 0x00, 0x00},
+                {0x00, 0x00, 0x10, 0x10, 0x10, 0x7C, 0x10, 0x10, 0x10, 0x7C, 0x10, 0x10, 0x00, 0x00, 0x00, 0x00},
+                {0x00, 0x00, 0x10, 0x38, 0x7C, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00},
+                {0x00, 0x00, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x7C, 0x38, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00}};
+            uint32_t q = (uint32_t)(uint8_t)*s - 1u, qx, qy;
+            for (qy = 0; qy < f->h; qy++)
+                for (qx = 0; qx < (8u << f->sh); qx++)
+                    if ((QG[q][qy >> f->sh] >> (7u - (qx >> f->sh))) & 1u)
+                        cv_pset(x + (int32_t)qx, y + (int32_t)qy, ramp[15]);
+            x += f->adv[glyph(f, (uint8_t)*s)];            /* (a code below the font's first draws as '?': its advance) */
+            continue;
+        }
         uint32_t gi = glyph(f, (uint8_t)*s), gx, gy, w, bpr;
         const uint8_t *gd;
         w = f->bw[gi];
-        bpr = (w + 1u) / 2u;
         gd = f->data + f->off[gi];
+        if (f->bits == 1u) {                           /* on / off pixels: full colour where a bit is set */
+            uint32_t sw = w >> f->sh;
+            for (gy = 0; gy < f->h; gy++)
+                for (gx = 0; gx < w; gx++) {
+                    uint32_t i = (gy >> f->sh) * sw + (gx >> f->sh);
+                    if ((gd[i >> 3] >> (7u - (i & 7u))) & 1u)
+                        cv_pset(x - f->pad + (int32_t)gx, y + (int32_t)gy, ramp[15]);
+                }
+            x += f->adv[gi];
+            continue;
+        }
+        bpr = ((w >> f->sh) + 1u) / 2u;
         for (gy = 0; gy < f->h; gy++)
             for (gx = 0; gx < w; gx++) {
-                uint32_t v = gd[gy * bpr + gx / 2u];
-                v = (gx & 1u) ? (v & 15u) : (v >> 4);
+                uint32_t sx = gx >> f->sh, v = gd[(gy >> f->sh) * bpr + sx / 2u];
+                v = (sx & 1u) ? (v & 15u) : (v >> 4);
                 if (v)
                     cv_pset(x - f->pad + (int32_t)gx, y + (int32_t)gy, ramp[v]);
             }

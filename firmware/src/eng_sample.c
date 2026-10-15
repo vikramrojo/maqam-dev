@@ -29,18 +29,20 @@ static const int8_t IMA_IDX[8] = {-1, -1, -1, -1, 2, 4, 6, 8};
 static uint32_t pow2_q16(int32_t d16)
 {
     uint32_t u = (uint32_t)(d16 + 192 * 16), oct = u / 192u;     /* no loop for negative d16 */
-    uint32_t r = PITCH_INC[1600 + u % 192u] / (PITCH_INC[1600] >> 16);   /* 2^(d/192) via the pitch table */
+    uint32_t r = pitch_inc(1600 + u % 192u) / (pitch_inc(1600) >> 16);   /* 2^(d/192) via the pitch table */
     return oct >= 16u ? r << (oct - 16u) : r >> (16u - oct);
 }
 
 /* ---- user sample slots (loaded from the web editor into flash, see web/EDITOR_PROTOCOL.md)
- * 3 slots of 80 KiB at flash 0xA0000.. (Felucca data region), read through the plain XIP
+ * 4 slots of 80 KiB: 3 at flash 0xA0000.., USR4 at 0xE7000 (Felucca data regions), read through the plain XIP
  * window. Slot = header (magic, count, name, data length, CRC32) + up to 16 zones in the
  * smp_zone_t layout (off relative to the slot's data at +512) + IMA ADPCM data. */
 #include "../hal/fm1_xip.h"   /* relative: hostsim includes this file too */
-#define SMP_USER_SLOTS 3
-#define SMP_USER_BASE 0xA0000u
+#define SMP_USER_SLOTS 4
+#define SMP_USER_BASE 0xA0000u                      /* USR1..USR3: 0xA0000..0xDBFFF */
+#define SMP_USER4_BASE 0xE7000u                     /* USR4 (2.4): the free flash after the FM6 bank, 0xE7000..0xFAFFF */
 #define SMP_USER_SIZE 0x14000u
+#define SMP_USER_OFF(k) ((k) < 3u ? SMP_USER_BASE + (k) * SMP_USER_SIZE : SMP_USER4_BASE)
 #define SMP_USER_DATA 512u
 #define SMP_USER_MAGIC 0x504D5346u                  /* "FSMP" */
 #define SMP_NALL (SMP_NSETS + SMP_USER_SLOTS)
@@ -54,10 +56,10 @@ typedef struct {
 } smp_user_hdr_t;                                   /* 32 + 16 x 28 = 480 B, data at +512 */
 static smp_zone_t usr_zone[SMP_USER_SLOTS][16];     /* RAM copy, off rebased onto SMP_DATA */
 static uint8_t usr_nz[SMP_USER_SLOTS];
-static const char *const SMP_ALL_NAMES[SMP_NALL] = {SMP_SET_NAMES_INIT, "USR1", "USR2", "USR3"};
+static const char *const SMP_ALL_NAMES[SMP_NALL] = {SMP_SET_NAMES_INIT, "USR1", "USR2", "USR3", "USR4"};
 
 #ifndef SMP_USER_XIP                                /* host tests: a RAM image of the slots */
-#define SMP_USER_XIP(k) fm1_xip_ptr(SMP_USER_BASE + (k) * SMP_USER_SIZE)
+#define SMP_USER_XIP(k) fm1_xip_ptr(SMP_USER_OFF((uint32_t)(k)))
 #endif
 static const uint8_t *smp_user_xip(uint32_t k) { return SMP_USER_XIP(k); }
 #if FELUCCA_SLICE
@@ -138,13 +140,13 @@ static void sample_note_on(track_t *t, voice_t *v)
     if (si < SMP_NSETS) {
         const smp_set_t *set = &SMP_SETS[si];
         for (i = 0; i < set->nz; i++)
-            if (v->note >= SMP_ZONES[set->z0 + i].lo && v->note <= SMP_ZONES[set->z0 + i].hi)
+            if (note_semi(v->note) >= SMP_ZONES[set->z0 + i].lo && note_semi(v->note) <= SMP_ZONES[set->z0 + i].hi)   /* maqam: zones are semitones */
                 zi = set->z0 + i;
         v->s[4] = (int32_t)(zi == 0xFFFFu ? set->z0 : zi);
     } else {                                        /* user slot: silent if empty */
         uint32_t k = si - SMP_NSETS;
         for (i = 0; i < usr_nz[k]; i++)
-            if (v->note >= usr_zone[k][i].lo && v->note <= usr_zone[k][i].hi)
+            if (note_semi(v->note) >= usr_zone[k][i].lo && note_semi(v->note) <= usr_zone[k][i].hi)   /* maqam: zones are semitones */
                 zi = 0x8000u | k << 5 | i;
         v->s[4] = (int32_t)(zi == 0xFFFFu ? 0 : zi);
     }

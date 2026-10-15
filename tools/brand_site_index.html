@@ -1,0 +1,45 @@
+<section class="stack" style="--gap: var(--space-4)">
+  <h1>Quarter tones for the M-VAVE FM-1</h1>
+  <p class="lead">A groovebox you play live, with the notes between the notes: quarter tones, and the scales of
+    Arabic maqam, Turkish makam and Indian raga next to the Western ones.</p>
+  <p>Four tracks (three synths and a drum machine), twelve synthesis engines, a step sequencer with parameter locks, and
+    <b>52 scales in four sets</b> on a 24-note grid. Every scale plays from any root, ascending and descending forms differ
+    where the tradition says so, and an <b>EQUAL / TRADITIONAL</b> switch lets you hear a scale on the plain grid and in its
+    own tuning. A step's bend is a <b>CENT</b> lock (&minus;63 to +63 cents).</p>
+</section>
+
+<div class="grid" style="--min-item: 17rem">
+  <a class="link-card" data-tone="danger" href="webapp/installer/"><strong>Install</strong><span>put Maqam on your FM-1, from the browser (Chrome or Edge, USB)</span></a>
+  <a class="link-card" data-tone="success" href="webapp/emu/"><strong>Try it in your browser</strong><span>the real firmware running in a web page, no FM-1 needed</span></a>
+  <a class="link-card" data-tone="warning" href="webapp/guide/"><strong>How to play Maqam</strong><span>the scale screens, quarter-tone keys, tuning and CENT, with pictures</span></a>
+  <a class="link-card" data-tone="secondary" href="webapp/scales/"><strong>The 52 scales</strong><span>every scale's notes and cents, EQUAL and TRADITIONAL</span></a>
+</div>
+
+<p class="small">Version {{VERSION}}. Still a beta: install at your own risk. <a href="https://github.com/vikramrojo/maqam-dev/issues">Report a bug</a>.
+  Hold OCT&minus; alone while switching on for USB rescue.</p>
+
+<section class="stack" id="sloop" style="--gap: var(--space-3)">
+  <h2>Forward compatible with SLOOP</h2>
+  <p>Maqam is built on the sources of <a href="https://github.com/isod89/sloop-fm1">SLOOP</a> 2.6 and merges each new SLOOP
+    release, so it stays a compatible sibling and not a separate island. In practice:</p>
+  <ul class="stack" style="--gap: var(--space-2); padding-inline-start: 1.2em">
+    <li><b>Projects.</b> They are saved in SLOOP's own format (FUN6), with Maqam's extras in a small tagged block. SLOOP
+      firmware opens a Maqam project and plays it in 12 tones; Maqam opens SLOOP projects as they are.</li>
+    <li><b>Backups</b> use SLOOP's backup format, so a backup moves either way.</li>
+    <li><b>The editor protocol</b> is SLOOP's plus one byte (the quarter-tone bits of a step). SLOOP's editor still talks to
+      Maqam; avoid editing steps with it, because it drops the quarter tones.</li>
+    <li><b>MIDI and the USB device</b> are unchanged: the same port, the same audio interface.</li>
+    <li><b>You can switch either way.</b> Both installers use the same update mechanism: SLOOP's installer replaces Maqam,
+      this one replaces SLOOP, and either can return the official firmware. Your projects, presets, samples and settings are kept when you update.</li>
+  </ul>
+  <h2>Credits</h2>
+  <p class="small">Maqam is free software under the GPL-3.0. It is based on
+    <a href="https://github.com/isod89/sloop-fm1">SLOOP</a> by isod89, which is based on
+    <a href="https://github.com/hugelton/Felucca">Felucca</a> by Leo Kuroshita (@kurogedelic),
+    <a href="https://hugelton.com">Hügelton Instruments</a>. The browser emulator follows the approach of
+    <a href="https://github.com/charlesvestal/fm1-x0x">fm1-x0x</a> by Charles Vestal. This site is styled with
+    <a href="https://largen.dev">Largen</a> by Vikram Rojo (MIT).
+    Fonts: Rakkas (Zeynep Akay, SIL OFL 1.1) for the wordmark and headings, and Terminus (Dimitar Toshkov Zhekov, SIL OFL 1.1) on the
+    FM-1's screen. M-VAVE and FM-1 are trademarks of their respective owners; Maqam, SLOOP and Felucca are
+    not affiliated with them. <a href="https://github.com/vikramrojo/maqam-dev/blob/main/LICENSING.md">All licences and credits</a>.</p>
+</section>

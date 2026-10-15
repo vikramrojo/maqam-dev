@@ -139,14 +139,41 @@ int main(void)
     for (i = 0; i < 53u; i++)
         r.p[i] = (int16_t)(2000 + i);
     up_params(&r, v, def);
-    ok = P_SLCR == 45 && P_SLDEPTH + 1 == P_CHORD && P_CHORD == 49 && P_E0 == 50;
+    ok = P_SLCR == 45 && P_SLDEPTH + 1 == P_CHORD && P_CHORD == 49 && P_TFLT == 50 && P_VLEAD == 52 && P_ITYPE == 53 &&
+         P_E0 == 64;   /* maqam: P_CENT sits before P_E0 */
     for (i = 0; i < 45u; i++)
         ok &= v[i] == (int16_t)(2000 + i);
-    for (i = P_SLCR; i <= P_CHORD; i++)
+    for (i = P_SLCR; i < P_E0; i++)
         ok &= v[i] == def[i];
     for (i = 0; i < 8u; i++)
         ok &= v[P_E0 + i] == (int16_t)(2000 + 45 + i);
-    bad += check("old record (np 53): SLICER and CHORD defaults, E0..E7 kept", ok);
+    bad += check("old record (np 53): SLICER, CHORD and FILTER defaults, E0..E7 kept", ok);
+    /* a record of SLOOP 2.0 .. 2.3 (P_COUNT 58, P_E0 50): only the FILTER (2.4) takes its default */
+    r.np = 58;
+    for (i = 0; i < 58u; i++)
+        r.p[i] = (int16_t)(3000 + i);
+    up_params(&r, v, def);
+    ok = 1;
+    for (i = 0; i < P_TFLT; i++)
+        ok &= v[i] == (int16_t)(3000 + i);
+    for (i = P_TFLT; i < P_E0; i++)
+        ok &= v[i] == def[i];
+    for (i = 0; i < 8u; i++)
+        ok &= v[P_E0 + i] == (int16_t)(3000 + 50 + i);
+    bad += check("2.3 record (np 58): FILTER, STRUM, VLEAD and the 2.6 ten defaults, CHORD and E0..E7 kept", ok);
+    /* a record of SLOOP 2.4 .. 2.5 (P_COUNT 61, P_E0 53): the ten of 2.6 (INSERT, FTYPE, ESYNC, LFO 2) default */
+    r.np = 61;
+    for (i = 0; i < 61u; i++)
+        r.p[i] = (int16_t)(4000 + i);
+    up_params(&r, v, def);
+    ok = 1;
+    for (i = 0; i < P_ITYPE; i++)
+        ok &= v[i] == (int16_t)(4000 + i);
+    for (i = P_ITYPE; i < P_E0; i++)
+        ok &= v[i] == def[i];
+    for (i = 0; i < 8u; i++)
+        ok &= v[P_E0 + i] == (int16_t)(4000 + 53 + i);
+    bad += check("2.5 record (np 61): the 2.6 parameters (INSERT, FTYPE, ESYNC, LFO 2) default, the rest and E0..E7 kept", ok);
     /* a record of SLOOP 1.0 (P_COUNT 57, P_E0 49): CHORD (SLOOP 2.0) takes its default */
     r.np = 57;
     for (i = 0; i < 57u; i++)
@@ -183,6 +210,31 @@ int main(void)
         memset(st, 0, sizeof st);
         up_pat_from(&r, st);
         bad += check("empty sequencer -> empty pattern", up_pat_empty(&r));
+    }
+    {   /* maqam (5.5): B-half-flat in the pattern, at UP_VER 1: steps -> record -> bank -> record, and over UP_PUT */
+        step_t st[NSTEP];
+        up_rec_t q;
+        uint32_t m;
+        memset(st, 0, sizeof st);
+        for (i = 0; i < 16u; i++)
+            st[i].time = ST_REST;
+        st[0] = (step_t){{70u | 0x80u}, 1, ST_NOTE, 0, 100, 0, 0};          /* B-half-flat (A#|Q = 70.5) */
+        st[1] = (step_t){{64}, 1, ST_NOTE, 0, 100, 0, 0};
+        up_pat_from(&q, st);
+        bad += check("steps -> pattern keeps the quarter tone", q.note[0] == (70u | 0x80u) && q.note[1] == 64 && UP_VER == 1u);
+        m = up_qmask(q.note);
+        bad += check("the quarter-tone mask of the pattern", m == 1u);
+        n = put_frame(a, 7, 1, "Quarter", 3);
+        a[n++] = 1; a[n++] = 0; a[n++] = 0;                                   /* the mask: note 1 (index 0) */
+        i = 0;
+        {
+            uint32_t k0 = n - 3u - 32u;                                      /* the pattern: note, flags per step */
+            a[k0] = 70; a[k0 + 1] = 1;                                       /* step 1: A#4 (wire notes are 7 bits) */
+            a[k0 + 2] = 64; a[k0 + 3] = 1;
+        }
+        bad += check("UP_PUT with the mask: B-half-flat in the record", up_parse(a, n, &r, &slot) == 0 && r.note[0] == (70u | 0x80u) &&
+                                                                       r.note[1] == 64 && up_qmask(r.note) == 1u);
+        bad += check("UP_PUT without the mask (an older editor): the plain note", up_parse(a, n - 3u, &r, &slot) == 0 && r.note[0] == 70);
     }
     printf("%s\n", bad ? "USER PRESET TEST FAILED" : "user preset test passed");
     return bad != 0;

@@ -95,6 +95,24 @@ def draw_word(d, ox, oy, k, col=WHITE):
     line(x + w / 2, oy + R, x + w / 2, base + 36 * k)
 
 
+# maqam: the fork's wordmark on the boot splash: "Maqam" in Rakkas (Zeynep Akay, SIL OFL 1.1,
+# assets/fonts/rakkas/), centred under the icon and fitted to the band below it
+MAQAM_FONT = Path(__file__).resolve().parents[1] / "assets" / "fonts" / "rakkas" / "Rakkas-Regular.ttf"
+MAQAM_WORD = "Maqam"
+
+
+def draw_word_maqam(d, cx, top, band, col=WHITE):
+    from PIL import ImageFont
+    size = int(band)
+    while size > 8:                                   # the largest size whose ink fits the band and the width
+        f = ImageFont.truetype(str(MAQAM_FONT), size)
+        x0, y0, x1, y1 = f.getbbox(MAQAM_WORD)
+        if y1 - y0 <= band and x1 - x0 <= 2 * cx * 0.92:
+            break
+        size -= 2
+    d.text((cx - (x0 + x1) / 2, top - y0 + (band - (y1 - y0)) / 2), MAQAM_WORD, font=f, fill=col)
+
+
 def render(kind, W, H, k, bg=BLACK, ss=4):
     im = Image.new("RGB", (W * ss, H * ss), bg)
     d = ImageDraw.Draw(im)
@@ -102,6 +120,9 @@ def render(kind, W, H, k, bg=BLACK, ss=4):
     if kind == "h":                                   # icon + wordmark side by side
         draw_icon(d, 10 * K, (H * ss - 240 * K) / 2, K)
         draw_word(d, 270 * K, H * ss / 2 - 36 * K, K)
+    elif kind == "v" and MAQAM_FONT.exists():         # maqam: the boot splash is the wordmark alone, in Rakkas
+        band = H * ss * 0.46
+        draw_word_maqam(d, W * ss / 2, (H * ss - band) / 2, band)
     elif kind == "v":                                 # icon over the wordmark (the boot splash)
         draw_icon(d, (W * ss - 240 * K) / 2, 0, K)
         draw_word(d, (W * ss - word_width(K)) / 2, 262 * K, K)
@@ -172,6 +193,10 @@ def svg(kind):
 
 # ---- firmware splash ---------------------------------------------------------------------------
 SPLASH_W, SPLASH_H = 240, 188
+# the scale: the icon (240), the gap (22), the wordmark's x-height (72), the p's descender (36) and its round
+# end (6): 376 units in SPLASH_H rows. At 0.56 (before 2.4) the p's tail ran past row 188 and was cut
+SPLASH_K = 0.5
+assert (262 + 72 + 36 + 6) * SPLASH_K <= SPLASH_H, "the wordmark's p must fit the splash"
 
 
 def rgb565(c):
@@ -180,7 +205,7 @@ def rgb565(c):
 
 
 def splash_header(path):
-    im = render("v", SPLASH_W, SPLASH_H, 0.56)
+    im = render("v", SPLASH_W, SPLASH_H, SPLASH_K)
     # a fixed palette: black, and each logo colour at 1/3, 2/3 and full (the anti-aliased edges)
     cols = [BLACK]
     for c in (WHITE, BLUE, GREEN, YELLOW, ORANGE):
@@ -219,7 +244,7 @@ def assets(out):
     (out / "sloop-icon.svg").write_text(svg("i"))
     render("h", 1520, 520, 2.0).save(out / "sloop-logo.png")
     render("i", 512, 512, 512 / 240).save(out / "sloop-icon.png")
-    render("v", SPLASH_W, SPLASH_H, 0.56).resize((SPLASH_W * 2, SPLASH_H * 2), Image.NEAREST).save(out / "sloop-splash.png")
+    render("v", SPLASH_W, SPLASH_H, SPLASH_K).resize((SPLASH_W * 2, SPLASH_H * 2), Image.NEAREST).save(out / "sloop-splash.png")
     print(f"logo: assets in {out}")
 
 

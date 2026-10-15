@@ -1,0 +1,62 @@
+/* Maqam site components, on Largen 0.6.3 (MIT): slots filled from --tone-* tokens only, all inside the components layer.
+   Load after largen.css, largen.components.css, theme-dark.css and maqam-theme.css, with <html data-theme="dark">. */
+
+/* the hidden attribute wins over any component's display (unlayered rules outrank every layer) */
+[hidden] { display: none; }
+
+@layer largen.components {
+  /* the page: a centred column, the same on every page */
+  .page, .site-header, .site-footer, .rule-wrap { --measure: 60rem; }
+  .page { --pad: var(--space-8) var(--space-4) var(--space-12); --gap: var(--space-8); }
+  .rule-wrap { --pad: var(--space-4) var(--space-4) 0; }
+  .page h1 { --font-size: clamp(2rem, 5vw, 2.75rem); --weight: 400; --line-height: 1.1; font-family: var(--font-display); margin: 0; text-wrap: balance; }
+  .page h2 { --font-size: 1.3rem; --weight: var(--weight-bold); margin-block: 0; }
+  .page .lead { --font-size: 1.3rem; --line-height: 1.4; --fg: var(--ink); }
+  .page .small { --fg: var(--ink-muted); --font-size: .85rem; }
+  .page .small a { --fg: currentColor; }
+  .page p, .page ul, .page ol { margin-block: 0; }
+
+  /* the site header: wordmark (Rakkas) and the same navigation everywhere */
+  .site-header { --pad: var(--space-6) var(--space-4) 0; --gap: var(--space-2) var(--space-6);
+    display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; }
+  .wordmark { --fg: var(--ink); --font-size: 2.4rem; --weight: 400; --line-height: 1; text-decoration: none; font-family: var(--font-display); }
+  .site-nav { --gap: .25rem 1.1rem; --font-size: .9rem; display: flex; flex-wrap: wrap; }
+  .site-nav a { --fg: currentColor; color: var(--ink-muted); text-decoration: none; }
+  .site-nav a:hover, .site-nav a[aria-current] { color: var(--ink); text-decoration: underline; text-underline-offset: .3em; }
+
+  /* the four-colour rule: the palette, one stripe per tone (green, red, yellow, pink) */
+  .rule { --gap: 0; display: flex; block-size: 4px; }
+  .rule > i { --bg: var(--tone); flex: 1; }
+
+  /* a direction label in the scale tables ("down"): the word in its tone's colour, same weight as "up", nothing around it */
+  .dir { --fg: var(--tone-ink); }
+
+  /* link cards: one per destination, accent by tone */
+  .link-card { --bg: var(--surface); --fg: var(--ink); --border-color: var(--tone); --border-width: 0 0 0 4px; --border-style: solid;
+    --radius: var(--radius-sm); --pad: 1em 1.1em; --gap: .2em; display: flex; flex-direction: column; text-decoration: none;
+    --transition: var(--speed) background-color; }
+  .link-card:hover, .link-card:focus-visible { --bg: var(--tone-soft); }
+  .link-card strong { --font-size: 1.15em; --weight: var(--weight-bold); }
+  .link-card span { --fg: var(--ink-muted); --font-size: .85em; }
+
+  /* prose (the guide): largen's, with the screenshots kept crisp */
+  .prose { --measure: 100%; }
+  .prose img { image-rendering: pixelated; display: block; margin-block: .5em; }
+  .prose td img, .prose th img { margin: 0; }
+  .prose .table-wrap { margin-block: 1em; }
+  .prose h2 { margin-block-start: 2.2em; padding-block-start: 1.2em; border-block-start: var(--hairline) solid var(--line); }
+
+  /* the scales tables */
+  .scales { inline-size: auto; min-inline-size: 100%; }
+  .scales th { --fg: var(--ink-muted); --font-size: .8rem; --weight: var(--weight-medium); }
+  .scales td.deg { --pad: .4em .55em; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; min-inline-size: 4.2em; }
+  .scales td.deg b { --font-size: 1.05em; }
+  .scales tr.down td, .scales tr.down th { --bg: var(--surface); }
+  .eq, .tr { --fg: var(--tone-ink); }
+  .scales sup.q, .page sup.q { --font-size: .72em; line-height: 0; }
+
+  /* the footer: the same on every page */
+  .site-footer { --fg: var(--ink-muted); --font-size: .8rem; --pad: var(--space-6) var(--space-4) var(--space-12); --gap: .5rem;
+    display: flex; flex-direction: column; border-block-start: var(--hairline) solid var(--line); }
+  .site-footer a { --fg: currentColor; }
+}

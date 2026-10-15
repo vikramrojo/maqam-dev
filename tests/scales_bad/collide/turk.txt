@@ -1,0 +1,44 @@
+# SLOOP scales: TURK set (index 16..27)
+# Source: Arel-Ezgi-Uzdilek 53-comma system (1 comma = 1200/53 cents). Each value is the
+# cumulative comma count from the tonic times 1200/53; the comma steps are in the comments.
+# Home notes use the nearest 24-grid note (Segah/Huzzam: B-koma-flat -> Bd).
+
+scale T.RST "Rast" home G   # steps 9,8,5,9,9,8,5 (down 9,8,5,9,9,4,9)
+  up   0. 203.8 384.9 498.1 701.9 905.7 1086.8
+  down 0. 203.8 384.9 498.1 701.9 905.7 996.2
+
+scale USSAK "Ussak" home A   # steps 8,5,9,9,4,9,9
+  up   0. 181.1 294.3 498.1 701.9 792.5 996.2
+
+scale HUSEY "Huseyni" home A   # steps 8,5,9,9,8,5,9 (down 8,5,9,9,4,9,9)
+  up   0. 181.1 294.3 498.1 701.9 883.0 996.2
+  down 0. 181.1 294.3 498.1 701.9 792.5 996.2
+
+scale KURDI "Kurdi" home A   # steps 4,9,9,9,4,9,9
+  up   0. 90.6 294.3 498.1 701.9 792.5 996.2
+
+scale NIHAV "Nihavend" home G   # steps 9,4,9,9,4,13,5 (down 9,4,9,9,4,9,9)
+  up   0. 203.8 294.3 498.1 701.9 792.5 1086.8
+  down 0. 203.8 294.3 498.1 701.9 792.5 996.2
+
+scale HICAZ "Hicaz" home A   # steps 5,12,5,9,8,5,9 (down 5,12,5,9,4,9,9)
+  up   0. 113.2 384.9 498.1 701.9 883.0 996.2
+  down 0. 113.2 384.9 498.1 701.9 792.5 996.2
+
+scale HCKAR "Hicazkar" home G   # steps 5,12,5,9,5,12,5
+  up   0. 113.2 384.9 498.1 701.9 815.1 1086.8
+
+scale SUZIN "Suzinak" home G   # steps 9,8,5,9,5,12,5
+  up   0. 203.8 384.9 498.1 701.9 815.1 1086.8
+
+scale KARCI "Karcigar" home A   # steps 8,5,9,5,12,5,9
+  up   0. 181.1 294.3 498.1 611.3 883.0 996.2
+
+scale T.SBA "Saba" home A   # steps 8,5,4,14,4,9,9
+  up   0. 181.1 294.3 384.9 701.9 792.5 996.2
+
+scale SEGAH "Segah" home Bd   # steps 5,9,9,8,5,9,8
+  up   0. 113.2 317.0 520.8 701.9 815.1 1018.9
+
+scale HUZZM "Huzzam" home Bd   # steps 5,9,5,12,5,9,8
+  up   0. 113.2 317.0 430.2 701.9 815.1 1018.9

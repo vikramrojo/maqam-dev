@@ -62,6 +62,22 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
 | `FELUCCA_UAC` | 1 | USB audio input: the master output, 44.1 kHz stereo (after Felucca 1.0) |
 | `FELUCCA_UART` | 1 | TRS MIDI IN (the 3.5 mm jack) |
 
+## Web emulator
+
+`sh web/emu/build.sh` builds `build/emu/sloop.wasm` (the firmware's sources plus a host HAL, freestanding, no
+imports) and copies `web/emu/index.html` next to it. To try it: `python3 -m http.server 8000 --bind 127.0.0.1 -d build/emu`
+and open `http://localhost:8000/` (not the `[::]` or `0.0.0.0` address the server prints: the browser turns audio
+worklets and Web MIDI off there). It needs clang with the `wasm32`
+target (Apple clang has it), `wasm-ld` (macOS: `brew install lld`) and the generated headers in `build/gen`
+(Pillow, as the build above). `python3 web/make_site.py` copies both into `webapp/emu/` of the site, and leaves
+the emulator out (with a notice) if the wasm is not built. It does not need the JieLi toolchain.
+
+**The Maqam site.** `python3 tools/brand_site.py SITE_DIR`, run after `make_site.py`, brands the generated site as Maqam without touching upstream's web sources: it rewrites the displayed text from a table in the script (it fails, naming the entry, when upstream changes a string), puts in the Rakkas wordmark and icons (Pillow), writes the landing page (`tools/brand_site_index.html`, with the "Forward compatible with SLOOP" section and the credits), and renames the firmware download to `maqam-VER.fwsc`. `tests/site_test_maqam.py` checks it. Ids, file names and storage keys code depends on keep their `sloop` names on purpose; the script's docstring lists them.
+
+Tests: `tests/hostapp_test` (native, in `tests/run_tests.sh`; the golden is `tests/golden_hostapp.txt`),
+`node web/test_web.mjs` (also renders the golden scenario from the wasm and compares), `node web/emu/test_page.mjs`
+(the page).
+
 ## Samples
 
 The CC0 instrument samples that the SAMPLE engine uses are in `assets/samples-cc0/`
@@ -82,9 +98,38 @@ the command-line installer) and, with Node.js, the web page tests. Run it after 
 
 The regression suite (`tests/regress.c`) renders every engine and preset and compares a
 hash of each render with `tests/golden.txt`; it also checks levels, voices and the CPU
-cost (`tests/cpu_baseline.txt`, `tests/target_budget.txt`). After an intended change of
-the sound, `GOLDEN_UPDATE=1 sh tests/run_tests.sh` rewrites the hashes; `BUDGET_UPDATE=1`
-does the same for the cost files.
+cost (`tests/cpu_baseline.txt`, `tests/target_budget.txt`). The host CPU cost is relative
+to the idle + drums mix, counted by the kernel on macOS and under callgrind on Linux when
+valgrind is installed (exact, about 45 s more); without either it is timed, a rough check.
+After an intended change of the sound, `GOLDEN_UPDATE=1 sh tests/run_tests.sh` rewrites
+the hashes; `BUDGET_UPDATE=1` does the same for the cost files.
+
+## Browser audio preview
+
+The browser preview uses the firmware's DSP and sequencer with RAM-backed user samples.
+It requires Python 3, a host C compiler, Node.js for tests, and Emscripten (`brew install emscripten` on macOS).
+It does not need the JieLi toolchain, AC79 SDK, Docker, or an FM-1.
+
+```sh
+python3 tools/build_preview.py
+tests/run_preview_tests.sh
+```
+
+The build produces `build/preview/sloop-preview.wasm`. The tests compare all twelve engines sample by sample
+against the same adapter compiled for the host and verify sequencing, live mixer changes, stop, and user samples.
+`web/make_site.py` includes the preview and caches it for the site app when the WASM build is present:
+
+```sh
+# Use a release package downloaded from isod89/sloop-fm1, or your own firmware build.
+python3 web/make_site.py build/releases/sloop-2.6.fwsc 2.6 build/site
+python3 -m http.server 8766 --bind 127.0.0.1 --directory build/site
+```
+
+Open `http://localhost:8766/webapp/editor/?mock=1`, **Connect**, then **Play loop** to hear all four tracks.
+**Show preview** opens the piano/pads, volume and editable sequence; **Hide preview** folds them while
+playback continues. The piano keys and labeled computer keys audition the selected track.
+The audio controls are available only in simulated mode. The physical-device editor continues to use Web MIDI.
+The standalone downloaded HTML editor does not include the WASM asset.
 
 ## Install
 

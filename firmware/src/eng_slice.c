@@ -250,7 +250,7 @@ static void slice_note_on(track_t *t, voice_t *v)
     if (!s)
         return;
     n = slc_count(s, div);
-    j = ((int32_t)v->note - SLC_BASE - p[P_ROOT] + p[P_E2]) % (int32_t)n;
+    j = ((int32_t)note_semi(v->note) - SLC_BASE - (p[P_ROOT] >> 1) + p[P_E2]) % (int32_t)n;   /* maqam: semitone, root on the 24 grid */
     j += j < 0 ? (int32_t)n : 0;
     slc_bounds(s, div, (uint32_t)j, &a, &b, &st);
     if (b <= a || (rev && !slc_rb(t, v)))

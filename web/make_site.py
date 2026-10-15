@@ -7,6 +7,15 @@
   firmware/felucca-VER.fwsc   the package
   webapp/installer/index.html index_pkg.html with fm1pkg.js, fm1ota.js and the metadata inlined
   webapp/editor/index.html    editor.html (+ fukiai.ttf, FUKIAI-LICENSE.txt)
+  webapp/editor/sloop-editor.html  the editor in one file, for offline use (SLOOP 2.6): its icon font inlined,
+                              its links to the installer and the font licence online; opened from the disk in
+                              Chrome / Edge (file:// is a secure context: Web MIDI asks for permission)
+  webapp/sw.js, webapp/sloop.webmanifest, webapp/icon-*.png  the site without internet (SLOOP 2.6): an app to
+                              install; opened once online, the installer, the editor and the firmware are kept
+                              by the browser and work offline, still on https (on Android a downloaded file opens
+                              as content://, where Chrome refuses Web MIDI)
+  webapp/emu/                 the emulator: web/emu/index.html + build/emu/sloop.wasm (skipped, with a notice, if
+                              web/emu/build.sh has not run)
   src/                        not touched
 
   web/make_site.py build/felucca-X.Y.fwsc X.Y OUT_DIR [--beta]
@@ -15,6 +24,7 @@
 The package identity (FM-1_9xx) is read from the package; the device reports it
 after the install.
 """
+import base64
 import hashlib
 import json
 import re
@@ -23,6 +33,69 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+ONLINE = "https://vikramrojo.github.io/maqam-dev/"                 # (the offline editor's links)  # maqam: this fork's site
+
+
+def offline_editor(html):
+    """editor.html as one file for the disk: the icon font inlined, the download link out, the relative links online"""
+    font = base64.b64encode((HERE / "fukiai.ttf").read_bytes()).decode()
+    for a, b in (('url("fukiai.ttf")', 'url(data:font/ttf;base64,' + font + ')'),
+                 ('href="../installer/"', 'href="' + ONLINE + 'webapp/installer/" target="_blank" rel="noopener"'),
+                 ('href="FUKIAI-LICENSE.txt"', 'href="' + ONLINE + 'webapp/editor/FUKIAI-LICENSE.txt" target="_blank" rel="noopener"')):
+        if html.count(a) != 1:
+            raise SystemExit(f"editor.html must contain {a} once; update make_site.py")
+        html = html.replace(a, b)
+    for pat, what in ((r"<!--DL-->.*?<!--/DL-->", "<!--DL-->...<!--/DL-->"),       # (the file has no site
+                      (r"<!--PWA-->.*?<!--/PWA-->", "<!--PWA-->...<!--/PWA-->"),    # around it: no app to
+                      (r"/\*PWA\*/.*?/\*/PWA\*/", "/*PWA*/.../*/PWA*/"),           # install, no copy kept)
+                      (r'<button id="install"[^>]*></button>\s*', '<button id="install">')):
+        html, n = re.subn(pat, "", html, flags=re.S)
+        if n != 1:
+            raise SystemExit(f"editor.html must contain {what} once; update make_site.py")
+    return html
+
+
+ICONS = ("icon-192.png", "icon-512.png", "icon-maskable-512.png")
+
+
+def app_files(out, version, fw_name):
+    """webapp/: the manifest, the icons and sw.js with the list of what it keeps (relative to webapp/) and a
+    stamp of their contents, so any change makes a new sw.js and the browser takes the new site"""
+    app = out / "webapp"
+    for f in ICONS:
+        shutil.copy(HERE / f, app / f)
+    manifest = {
+        "name": "SLOOP", "short_name": "SLOOP", "id": "editor/", "start_url": "editor/", "scope": "./",
+        "display": "standalone", "background_color": "#000000", "theme_color": "#000000",
+        "description": "SLOOP for the M-VAVE FM-1: the editor and the installer, also without internet",
+        "icons": [{"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+                  {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+                  {"src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}],
+    }
+    (app / "sloop.webmanifest").write_text(json.dumps(manifest, indent=1) + "\n", encoding="utf-8")
+    keep = {"installer/": app / "installer" / "index.html", "editor/": app / "editor" / "index.html",
+            "../firmware/" + fw_name: out / "firmware" / fw_name, "sloop.webmanifest": app / "sloop.webmanifest"}
+    for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt"):
+        if (app / "editor" / f).exists():
+            keep["editor/" + f] = app / "editor" / f
+    for f in ("preview.js", "preview-worklet.js", "sloop-preview.wasm"):
+        if (app / "editor" / f).exists():
+            keep["editor/" + f] = app / "editor" / f
+    for f, k in (("index.html", "emu/"), ("sloop.wasm", "emu/sloop.wasm")):   # maqam: the emulator, when the site has it
+        if (app / "emu" / f).exists():            # ("emu/", not "emu/index.html": sw.js key() folds index.html into the folder)
+            keep[k] = app / "emu" / f
+    for f in ICONS:
+        keep[f] = app / f
+    h = hashlib.sha256()
+    for k in sorted(keep):
+        h.update(k.encode() + b"\0" + keep[k].read_bytes())
+    sw = (HERE / "sw.js").read_text(encoding="utf-8")
+    for mark in ("/*STAMP*/", "/*FILES*/[]"):
+        if sw.count(mark) != 1:
+            raise SystemExit(f"sw.js must contain {mark} once; update make_site.py")
+    sw = sw.replace("/*STAMP*/", f"{version}-{h.hexdigest()[:12]}").replace("/*FILES*/[]", json.dumps(sorted(keep)))
+    (app / "sw.js").write_text(sw, encoding="utf-8")
+    return sorted(keep)
 BLOCKS, BLK, KEEP = 20, 0x30, 0x2F
 
 
@@ -72,17 +145,44 @@ def main(pkg, version, out):
     html = html.replace("<!--BANNER-->", banner)
     for old in list(fw.glob("felucca-*.fwsc")) + list(fw.glob("sloop-*.fwsc")):   # one package: the current one
         old.unlink()
-    (inst / "index.html").write_text(html, encoding="utf-8")
     shutil.copy(pkg, fw / name)
-    shutil.copy(HERE / "editor.html", ed / "index.html")
+    ed_html = (HERE / "editor.html").read_text(encoding="utf-8")
+    dl = f'download="sloop-editor-{re.sub(r"[^A-Za-z0-9.-]", "-", version)}.html"'
+    if ed_html.count('download="sloop-editor.html"') != 1 or html.count('download="sloop-editor.html"') != 1:
+        raise SystemExit('editor.html and index_pkg.html must link download="sloop-editor.html" once; update make_site.py')
+    (ed / "index.html").write_text(ed_html.replace('download="sloop-editor.html"', dl), encoding="utf-8")
+    (ed / "sloop-editor.html").write_text(offline_editor(ed_html), encoding="utf-8")
+    (inst / "index.html").write_text(html.replace('download="sloop-editor.html"', dl), encoding="utf-8")
     for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt"):
         if (HERE / f).exists():
             shutil.copy(HERE / f, ed / f)
+    # Optional browser DSP, built separately without the hardware toolchain.
+    for f in ("preview.js", "preview-worklet.js"):
+        shutil.copy(HERE / f, ed / f)
+    dsp = HERE.parent / "build" / "preview" / "sloop-preview.wasm"
+    if dsp.exists():
+        shutil.copy(dsp, ed / dsp.name)
+    elif (ed / dsp.name).exists():
+        (ed / dsp.name).unlink()  # never serve an old audio build as the current one
+    emu_src, wasm_emu = HERE / "emu" / "index.html", HERE.parent / "build" / "emu" / "sloop.wasm"   # maqam: the emulator
+    if emu_src.exists() and wasm_emu.exists():      # optional: the emulator needs web/emu/build.sh first
+        emu = out / "webapp" / "emu"
+        emu.mkdir(parents=True, exist_ok=True)
+        shutil.copy(emu_src, emu / "index.html")
+        shutil.copy(wasm_emu, emu / "sloop.wasm")
+        emu_note = f"webapp/emu ({wasm_emu.stat().st_size} B wasm)"
+    else:
+        emu_note = "no emu"
+        print(f"site: no emulator ({wasm_emu} not found: run web/emu/build.sh)")
+        for f in ("index.html", "sloop.wasm"):      # never serve an old emulator build as the current one
+            if (out / "webapp" / "emu" / f).exists():
+                (out / "webapp" / "emu" / f).unlink()
+    app_files(out, version, name)
     (out / "index.html").write_text(
         '<!doctype html><meta charset="utf-8"><title>SLOOP</title>'
         '<meta http-equiv="refresh" content="0; url=webapp/installer/">'
         '<a href="webapp/installer/">SLOOP installer</a>\n', encoding="utf-8")
-    print(f"site: {out}: webapp/installer ({len(html)} B), webapp/editor, firmware/{name} ({len(raw)} B, {product})")
+    print(f"site: {out}: webapp/installer ({len(html)} B), webapp/editor, {emu_note}, firmware/{name} ({len(raw)} B, {product})")
 
 
 if __name__ == "__main__":
