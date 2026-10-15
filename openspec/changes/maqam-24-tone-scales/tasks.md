@@ -85,7 +85,7 @@ Tasks 5.1–5.4, 6.1, 7.1 and 7.2 were done on 2.3 and are partly superseded by 
 - [x] 9.2 Make step bends CENT parameter locks: lockable `P_CENT` on SEL 2, upstream's lock gesture, `step_t` back to 10 bytes. Verify with the `seq2_test` and `ui_pages_test` CENT-lock checks (the lock plays during its step, the next step is back in tune, chords bend).
 - [x] 9.3 Store projects as upstream FUN6 plus the MQ extension block, with editor protocol 11. Verify with `project_test` (FUN6 size and magic, 2.6 projects load with defaults, a damaged block falls back to defaults, a full round trip) and `node web/test_web.mjs` (qbits, CENT locks, a proto-10 device).
 - [ ] 9.4 Rebuild upstream's audio preview (`tools/build_preview.py`, needs `emcc`) so `sloop-preview.wasm` has CENT and quarter tones. Verify with `node tests/preview_test.mjs`.
-- [ ] 9.5 Re-render the `SCALES.md` screenshots on the merged firmware (SEL naming, CENT lock instead of STEP 2). Verify by viewing them.
+- [x] 9.5 Re-render the `SCALES.md` screenshots on the merged firmware (SEL naming, CENT lock instead of STEP 2). Verify by viewing them.
 - [ ] 9.6 Mention the scales and CENT locks in upstream's `GUIDE.md` and the French quick start. Verify that the docs match the controls.
 
 ## 8. Integration checks

@@ -21,7 +21,7 @@ Most of the time you want the **KEY layer**.
 
 ![The KEY layer, ARAB Rast on C](assets/screens/scales/06-layer-arab-rast-C-white.png)
 
-**The title bar** reads *root, set, scale, tuning*: `C arab rast trad` means:
+**The title bar** reads *root, set, scale, tuning*: `C ARAB RAST TRAD` means:
 - Rast, from the Arabic set,
 - with C as its root,
 - in TRADITIONAL tuning.
@@ -48,14 +48,14 @@ What the tiles show:
 | **KNOB 1 chord** | chord mode: off, triad, 7th, 9th, sus4, power |
 | **KNOB 2 scale** | the scale, within the current set (it wraps around) |
 | **KNOB 3 keys** | how the keys play the scale: off, snap, white (see below) |
-| **KNOB 4 transp** | transposes the track by semitones (this preset starts at −24) |
+| **KNOB 4 transp** | transposes the track by semitones |
 | **ALGORITHM** | tuning: turn right for **TRADITIONAL**, left for **EQUAL** |
 
 ### The home hint
 
 ![ARAB Ajam on C, with its home hint](assets/screens/scales/08-layer-arab-ajam-C-home.png)
 
-For Turkish, Arabic and Indian scales, the label over KNOB 2 shows the scale's **traditional home**, here `home Bb` for Ajam. It is **only a hint**:
+For Turkish, Arabic and Indian scales, the label over KNOB 2 shows the scale's **traditional home**, here `HOME BB` for Ajam. SLOOP 2.6 writes labels in capitals, so `BB` means B♭. It is **only a hint**:
 - Choosing a scale never changes your root. Ajam plays from C here.
 - To play it at home, press B♭ while SEL is held.
 - Any scale works from any root, with the same intervals and tuning.
@@ -88,9 +88,9 @@ With **KNOB 1 chord** on, each tile shows the chord its key plays. In Rast, the 
   - Arabic: al-Ṣabbāgh (1954).
   - Indian: just intonation.
 
-Hold a note, then turn ALGORITHM back and forth: the pitch moves slightly. Western scales are the same in both. The title bar shows `trad` or `equal`.
+Hold a note, then turn ALGORITHM back and forth: the pitch moves slightly. Western scales are the same in both. The title bar shows `TRAD` or `EQUAL`.
 
-The dim tiles here (D, E, A, B) are keys with no note of Segah nearby. `home` shows `B` with the half-flat glyph, Segah's traditional root.
+The dim tiles here (D, E, A, B) are keys with no note of Segah nearby. `HOME` shows `B` with the half-flat glyph, Segah's traditional root.
 
 ---
 
@@ -135,14 +135,12 @@ The picture under the values is **a one-octave keyboard, C to B, seen from the s
 
 ### The STEPS layer (hold SEQ)
 
-![STEPS: tiles show each step's note and bend](assets/screens/scales/11-layer-steps.png)
+![STEPS: tiles show each step's note](assets/screens/scales/11-layer-steps.png)
 
-Each tile is a step. A step that holds a note shows its name, with the half-flat or half-sharp glyph, and its **bend** in cents when it isn't 0:
-- `E` half-flat `4−5c` is E half-flat, 5 cents flat.
-- `E4+12c` is E, 12 cents sharp.
-- `B` half-flat `4` is B half-flat with no bend.
-
-When the label would be too long, the `c` is dropped.
+Each tile is a step. A step that holds a note shows its name with the half-flat or half-sharp glyph:
+- `E` half-flat `4` is E half-flat.
+- `E4` is plain E.
+- `B` half-flat `4` is B half-flat.
 
 ### The STEP page (tap SEQ)
 
@@ -153,29 +151,34 @@ When the label would be too long, the `c` is dropped.
 | **KNOB 1 STEP** | which step you're editing (1/16) |
 | **KNOB 2 NOTE** | moves the note by **semitones** and **keeps its quarter tone** (E half-flat + 2 = F# half-flat) |
 | **OCT− or OCT+ held + KNOB 2 NOTE** | moves the note by **quarter tones** (E, then one detent down = E half-flat); the octave doesn't change when you let go |
-| **KNOB 3 TIME, KNOB 4 FLAG** | as before (note / tie / rest; accent, slide) |
+| **KNOB 3 LEN, KNOB 4 FLAG** | as in SLOOP 2.6 (note length; accent, slide) |
 
 The picture underneath is the pattern: each short line is a step's pitch, and the dots mark the steps.
 
-### The bend: a CENT lock (hold a step in the SEQ layer)
+### CENT: fine tuning a track (SEL 2 page)
 
-![A step's bend: here CENT locked to −5 cents](assets/screens/scales/13-page-step2-cent.png)
+![SEL 2: KNOB 4 CENT, the track's fine tune, here −8 cents](assets/screens/scales/13-page-sel2-cent.png)
 
-*(The picture is of the earlier STEP 2 page and will be re-rendered.)* A step's bend is **CENT**, a track parameter (SEL 2, −63 to +63 cents) that can be **locked** on a step like any other sound parameter:
+Tap **SEL** twice to get the **SEL 2** page. **KNOB 4 CENT** tunes the whole track from **−63 to +63 cents**, one cent per detent. It adds to the scale's own tuning, up to ±100 cents in total.
 
-| Control | Does |
+### A bend on one step: a CENT lock
+
+A step's bend is a **lock** of CENT on that step, made like any other SLOOP 2.6 parameter lock:
+
+| Step | What you do | What you see |
+|---|---|---|
+| 1 | Hold **SEQ** and hold the step's key | the STEPS layer, that step selected |
+| 2 | Turn **ALGORITHM** until the title reads **LOCK CENT** | the title shows the parameter being locked |
+| 3 | Turn **PRESETS** | the lock is made, one cent per detent: **LOCK CENT −5** |
+| 4 | Let go of the step | the step's tile keeps a **small dot** (top right): it holds a lock |
+
+| Making the lock | After: the dot marks the locked step |
 |---|---|
-| **Step held** + **PRESETS** | makes the lock at the track's current value, then moves it: one cent per detent |
-| **ALGORITHM** | steps through the lockable parameters until the title line reads *lock cent* |
-| **OCT−** with the step held | clears the step's nudge, locks and condition |
+| ![LOCK CENT −5 on step 1](assets/screens/scales/14-layer-steps-cent-lock.png) | ![The locked step has a dot](assets/screens/scales/15-layer-steps-locked.png) |
 
-The bend applies to every note of the step, so a chord bends as a whole. In TRADITIONAL tuning it **adds** to the scale's own tuning, up to ±100 cents in total. Bends (locks) and quarter tones are saved with the project, and the web editor lists the CENT lock in the step detail. Turned on the SEL 2 page, **CENT** is the track's fine tune for every step.
-
----|---|
-| **KNOB 1 STEP** | which step |
-| **KNOB 2 CENT** | the step's bend, from **−63 to +63 cents**, one cent per detent |
-
-The bend applies to every note of the step, so a chord bends as a whole. In TRADITIONAL tuning it **adds** to the scale's own tuning, up to ±100 cents in total. Bends and quarter tones are saved with the project.
+- **What it bends.** The lock applies to every note of the step, so a chord bends as a whole. The next step without a lock goes back to the track's CENT.
+- **Clearing it.** With the step held, **OCT−** clears the step's nudge, locks and condition, as in 2.6.
+- **What's saved.** Locks and quarter tones are saved with the project. The web editor lists the CENT lock in the step's lock list.
 
 ---
 

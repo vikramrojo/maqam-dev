@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Build the FM-1 firmware (build/felucca.fwsc) with the JieLi toolchain and run the host tests.
+# The package is uploaded as an artifact of the run: Actions -> this run -> Artifacts (also linked
+# from a pull request's Checks tab). Linux x86-64 runs the JieLi tools natively (no Docker).
+name: firmware
+
+on:
+  push:
+    branches: [main, "vikramrojo/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      JIELI_TOOLCHAIN: ${{ github.workspace }}/../jieli/toolchain
+      AC79_SDK: ${{ github.workspace }}/../fw-AC79_AIoT_SDK
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python packages
+        run: pip install Pillow
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # The JieLi toolchain (clang 4.0.1 for pi32v2) and three files of the AC79 SDK (BUILDING.md).
+      # tools/build.py checks the SDK files against their SHA-256, so a wrong download fails the build.
+      - name: Cache toolchain and SDK files
+        id: deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/../jieli
+            ${{ github.workspace }}/../fw-AC79_AIoT_SDK
+          key: jieli-toolchain-ac79-sdk-v1.2.1-2023-12-13
+      - name: JieLi toolchain
+        if: steps.deps.outputs.cache-hit != 'true'
+        run: sh tools/get_toolchain.sh "$GITHUB_WORKSPACE/../jieli"
+      - name: AC79 SDK (only cpu/wl82/tools)
+        if: steps.deps.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+              https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$AC79_SDK"
+          git -C "$AC79_SDK" sparse-checkout set cpu/wl82/tools
+
+      - name: Build the firmware
+        run: |
+          ./build.sh 2>&1 | tee build.log
+          ls -l build/felucca.fwsc build/felucca.bin
+
+      - name: Host tests
+        id: tests
+        continue-on-error: true            # the CPU-time entries vary with the runner; see the summary
+        run: SOAK_MIN=1 sh tests/run_tests.sh 2>&1 | tee tests.log; exit "${PIPESTATUS[0]:-0}"
+        shell: bash
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Firmware build"
+            echo
+            if [ -f build/felucca.fwsc ]; then
+              echo "- \`felucca.fwsc\`: $(stat -c %s build/felucca.fwsc) bytes, sha256 \`$(sha256sum build/felucca.fwsc | cut -c1-16)…\`"
+            else
+              echo "- **No firmware: the build failed** (see the log)."
+            fi
+            echo "- Host tests: ${{ steps.tests.outcome }}"
+            echo
+            echo '```'
+            grep -E "pool|RAM|free|golden renders|over budget|ALL HOST TESTS|HOST TESTS FAILED|FAIL" build.log tests.log 2>/dev/null | tail -40
+            echo '```'
+            echo
+            echo "Download: this run's **Artifacts** section (\`maqam-firmware-…\`). Install with the web installer, after a backup."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the firmware
+        if: always() && hashFiles('build/felucca.fwsc') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: maqam-firmware-${{ github.sha }}
+          path: |
+            build/felucca.fwsc
+            build/felucca.bin
+            build/loader/ota.bin
+            build.log
+            tests.log
+          if-no-files-found: warn
+          retention-days: 30
