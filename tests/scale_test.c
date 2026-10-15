@@ -77,7 +77,9 @@ static void mapping_test(void)
     t->p[P_ROOT] = 0;
     t->p[P_TRANS] = 0;
     song.octave = 0;
-    assert(kb_map(t, 11) == 63u && kb_map(t, 10) == 63u && kb_map(t, 7) == 60u && kb_map(t, 8) == 60u);
+    /* (2.7 SNAP: each key covers its semitone +- a quarter tone: with no degree there, going up the next degree above, down the one below) */
+    assert(kb_quant(t, 11, 1, 0, 0) == 63u && kb_quant(t, 10, 1, 0, 0) == 63u && kb_quant(t, 7, 1, 0, 0) == 60u && kb_quant(t, 8, 1, 0, 0) == 60u);   /* descending: as SNAP always rounded */
+    assert(kb_quant(t, 11, 0, 0, 0) == 65u && kb_quant(t, 10, 0, 0, 0) == 63u && kb_quant(t, 7, 0, 0, 0) == 60u && kb_quant(t, 8, 0, 0, 0) == 62u);   /* ascending: up */
     puts("scales: all 16 scales, 12 roots, octave/transpose ranges, bypass, drums and SNAP ok");
 }
 
@@ -301,6 +303,13 @@ static uint32_t ref_kb_map(uint32_t mask, int root, int quant, int oct, int tran
     n = 60 + root + 12 * o + i;
     return (uint32_t)clamp(n + 12 * oct + trans, 0, 127);
 }
+static uint32_t ref_snap_up(uint32_t mask, int root, int oct, int trans, uint32_t k)   /* the old SNAP, rounded up */
+{
+    int32_t n = 53 + (int32_t)k + 12 * oct + trans, guard = 12;
+    while (guard-- && !((mask >> (uint32_t)((n - root + 120) % 12)) & 1u))
+        n++;
+    return (uint32_t)clamp(n, 0, 127);
+}
 static void quarter_key_test(void)
 {
     track_t *t = &trk[0];
@@ -319,8 +328,14 @@ static void quarter_key_test(void)
                         t->p[P_TRANS] = (int16_t)trans;
                         t->p[P_CHORD] = 0;
                         song.octave = (int8_t)oct;
-                        for (k = 0; k < 27u; k++)
-                            assert(kb_map(t, k) == ref_kb_map(mask, root, quant, oct, trans, k));
+                        for (k = 0; k < 27u; k++) {
+                            if (quant == 1) {                    /* SNAP: descending = the old round down, ascending = round up */
+                                assert(kb_quant(t, k, 1, 0, oct) == ref_kb_map(mask, root, quant, oct, trans, k));
+                                assert(kb_quant(t, k, 0, 0, oct) == ref_snap_up(mask, root, oct, trans, k));
+                            } else {
+                                assert(kb_map(t, k) == ref_kb_map(mask, root, quant, oct, trans, k));
+                            }
+                        }
                     }
     song.octave = 0;
     t->p[P_TRANS] = 0;
@@ -331,9 +346,18 @@ static void quarter_key_test(void)
     t->p[P_SCALE] = (int16_t)sc_code("RAST");
     assert(kb_map(t, 11) == (63u | NOTE_Q) && kb_map(t, 10) == (63u | NOTE_Q));       /* E = key 11, D# = key 10 */
     assert(kb_map(t, 12) == 65u && kb_map(t, 9) == 62u && kb_map(t, 7) == 60u);       /* F, D, C */
-    assert(kb_map(t, 8) == 60u);                                                      /* C# rounds down to C */
+    assert(kb_quant(t, 8, 0, 0, 0) == 62u && kb_quant(t, 8, 1, 0, 0) == 60u);        /* C# (no degree within a quarter tone): up D, down C */
     t->p[P_SCALE] = (int16_t)sc_code("MAJ");
-    assert(kb_map(t, 8) == 60u && kb_map(t, 11) == 64u && kb_map(t, 10) == 62u);
+    assert(kb_quant(t, 8, 0, 0, 0) == 62u && kb_quant(t, 8, 1, 0, 0) == 60u);        /* WEST MAJ C#: up D, down C */
+    assert(kb_quant(t, 11, 0, 0, 0) == 64u && kb_quant(t, 10, 0, 0, 0) == 64u && kb_quant(t, 10, 1, 0, 0) == 62u);   /* E exact; D# up E, down D */
+    /* Asavari on C (asc C D F G Ab, desc C D Eb F G Ab Bb): the E key going up F, going down Eb */
+    t->p[P_SCALE] = (int16_t)sc_code("ASAVR");
+    assert(kb_quant(t, 11, 0, 0, 0) == 65u && kb_quant(t, 11, 1, 0, 0) == 63u);
+    /* a window with two degrees and none on the key: both the quarter tone below and above (HUZAM descending: slots 11 and 13 round F#) */
+    assert(scale_snap(0x222889u, 0, 120 + 12, 1) == 133 && scale_snap(0x222889u, 0, 120 + 12, 0) == 131);
+    assert(scale_snap(0x222889u, 0, 120 + 11, 1) == 131 && scale_snap(0x222889u, 0, 120 + 11, 0) == 131);   /* on a degree: itself */
+    /* the key's own slot wins over its neighbours; a window with nothing: the next above / below, an octave away at the most */
+    assert(scale_snap(0x000001u, 0, 120 + 12, 1) == 144 && scale_snap(0x000001u, 0, 120 + 12, 0) == 120);
     /* 3.2 WHITE: ARAB Bayati on D walks D E-half-flat F G A B-flat C D on C4..C5 */
     t->p[P_QUANT] = 2;
     t->p[P_SCALE] = (int16_t)sc_code("BAYAT");
@@ -408,8 +432,8 @@ static void editor_step_test(void)
     puts("editor: a step with E-half-flat round-trips in the 12 step bytes (protocol v11); an older editor keeps the quarter tones");
 }
 
-/* maqam review regression: WHITE keeps one layout in both directions; a degree the played form lacks becomes its
- * nearest degree (the lower one on a tie). Asavari (5 up / 7 down), Yaman (6 / 7), and Rast (7 / 7: unchanged) */
+/* maqam review regression: WHITE keeps one layout in both directions; a degree the played form lacks becomes the next
+ * degree of that form above it going up, below it going down. Asavari (5 up / 7 down), Yaman (6 / 7), and Rast (7 / 7: unchanged) */
 static void white_direction_test(void)
 {
     static const uint8_t KEYS[8] = {7, 9, 11, 12, 14, 16, 18, 19};       /* C4 .. C5 */
@@ -419,7 +443,7 @@ static void white_direction_test(void)
     song.octave = 0;
     t->p[P_SCALE] = (int16_t)sc_code("ASAVR");                            /* up C D F G Ab, down C D Eb F G Ab Bb */
     {
-        const uint32_t DOWN[8] = {60, 62, 63, 65, 67, 68, 70, 72}, UP[8] = {60, 62, 62, 65, 67, 68, 68, 72};
+        const uint32_t DOWN[8] = {60, 62, 63, 65, 67, 68, 70, 72}, UP[8] = {60, 62, 65, 65, 67, 68, 72, 72};   /* a missing degree: up the next above, down the next below */
         for (k = 0; k < 8u; k++)
             assert(kb_quant(t, KEYS[k], 1, 0, 0) == DOWN[k] && kb_quant(t, KEYS[k], 0, 0, 0) == UP[k]);
         assert(kb_quant(t, 8, 0, 0, 0) == P24_SILENT && kb_quant(t, 8, 1, 0, 0) == P24_SILENT);             /* black keys stay silent */
@@ -427,7 +451,7 @@ static void white_direction_test(void)
     }
     t->p[P_SCALE] = (int16_t)sc_code("YAMAN");                            /* up C D E F# A B (no Pa), down adds G */
     {
-        const uint32_t DOWN[8] = {60, 62, 64, 66, 67, 69, 71, 72}, UP[8] = {60, 62, 64, 66, 66, 69, 71, 72};
+        const uint32_t DOWN[8] = {60, 62, 64, 66, 67, 69, 71, 72}, UP[8] = {60, 62, 64, 66, 69, 69, 71, 72};
         for (k = 0; k < 8u; k++)
             assert(kb_quant(t, KEYS[k], 1, 0, 0) == DOWN[k] && kb_quant(t, KEYS[k], 0, 0, 0) == UP[k]);
     }
@@ -439,10 +463,10 @@ static void white_direction_test(void)
     /* chord mode walks the same layout */
     t->p[P_SCALE] = (int16_t)sc_code("ASAVR");
     t->p[P_CHORD] = 1;
-    assert(kb_quant(t, 11, 0, 0, 0) == 62u && kb_quant(t, 11, 1, 0, 0) == 63u);
+    assert(kb_quant(t, 11, 0, 0, 0) == 65u && kb_quant(t, 11, 1, 0, 0) == 63u);
     t->p[P_CHORD] = 0;
     t->p[P_QUANT] = 0;
-    puts("scales: WHITE: one layout up and down (Asavari 5/7, Yaman 6/7: a missing degree gives the nearest, lower on a tie), Rast unchanged ok");
+    puts("scales: WHITE: one layout up and down (Asavari 5/7, Yaman 6/7: a missing degree: up the next above, down the next below), Rast unchanged ok");
 }
 
 int main(void)

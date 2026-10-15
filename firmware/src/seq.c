@@ -200,7 +200,7 @@ static uint32_t kb_map(const track_t *t, uint32_t k)
         return (uint32_t)clamp(SLC_BASE + root_semi(t) + 12 * song.octave + (int32_t)k, 0, 127);
 #endif
     {   /* maqam: SNAP / WHITE / chromatic on the 24-bit mask, the direction of play, the OCT-/OCT+ quarter tone (pitch24.h) */
-        uint32_t desc = k < kb_last_key[trk_index(t) % NTRK], r;
+        uint32_t desc = k < kb_last_key[trk_index(t) % NTRK] && (uint32_t)(fm1_ms - kb_last_ms[trk_index(t) % NTRK]) <= KB_DIR_PAUSE_MS, r;   /* (a pause of a second: ascending) */
         int32_t mod = oct_mod(fm1_in.buttons, dyn_bit[0], dyn_bit[1], ly_bit[LY_FX] | ly_bit[LY_ERASE] | ly_bit[LY_STEP] |
                               ly_bit[LY_SCALE] | ly_bit[LY_MIX] | ly_bit[LY_SONG]);
         kb_desc_now = (uint8_t)desc;
@@ -1523,7 +1523,9 @@ static void key_down(uint32_t k)
             }
             return;
         }
+        kb_walk_desc[trk_index(t) % NTRK] = (uint8_t)(k < kb_last_key[trk_index(t) % NTRK] && (uint32_t)(fm1_ms - kb_last_ms[trk_index(t) % NTRK]) <= KB_DIR_PAUSE_MS);
         kb_last_key[trk_index(t) % NTRK] = (uint8_t)k;   /* maqam: the direction of the next key (D5) */
+        kb_last_ms[trk_index(t) % NTRK] = fm1_ms;
         if (layer == LY_ROLL) {
             kb_kind[k] = KS_ROLL;
             kb_nt[k][0] = (uint8_t)n;

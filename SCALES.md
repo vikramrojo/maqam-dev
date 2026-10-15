@@ -66,11 +66,15 @@ For Turkish, Arabic and Indian scales, the label over KNOB 2 shows the scale's *
 |---|---|
 | ![WHITE](assets/screens/scales/06-layer-arab-rast-C-white.png) | ![SNAP](assets/screens/scales/07-layer-arab-rast-C-snap.png) |
 
-- **white:** the white keys walk the scale's notes in order, starting from C4 = the root, and the black keys are silent. A 7-note maqam fits one octave in 7 white keys, so it's the easiest way to play any maqam. **Recommended.**
-- **snap:** every key plays. Each key covers its own note and the quarter tone above it, and plays the scale note at or just below. In Rast on C, both E♭ and E play E half-flat.
+- **white:** the white keys walk the scale's notes in order, starting from C4 = the root, and the black keys are silent. A 7-note maqam fits one octave in 7 white keys, so it's the easiest way to play any maqam. The layout comes from the form of the scale with more notes, so it never shifts with the direction; a note the form you are playing lacks is replaced by the next note of that form, above it going up, below it going down (Asavari on C going up plays C D F F G A♭ C C on the keys C4 to C5; going down, C D E♭ F G A♭ B♭ C). **Recommended.**
+- **snap:** every key plays. Each key covers its own note **and a quarter tone either side of it**. If a scale note is in that window, the key plays it (its own note first). If there is none, the key plays the **next scale note above it when you are going up, and the next one below it when you are going down**. In Rast on C, both E♭ and E play E half-flat. In Asavari on C, E plays F going up and E♭ going down. Even in a Western scale the keys between two notes now follow the direction: in C major, C♯ plays D going up and C going down.
 - **off:** plain chromatic keys. Hold **OCT−** or **OCT+** while pressing a key to get a half-flat or half-sharp anywhere.
 
-**Up and down can differ.** On a synth track, a key **lower than the last one** uses the scale's descending form. In Rast on C, the 7th is B half-flat going up and B♭ coming down. What you hear is what gets recorded.
+**Up and down can differ.** On a synth track, a key **lower than the last one** uses the scale's descending form, and any other key (a higher one, or the same one again) the ascending form. In Rast on C, the 7th is B half-flat going up and B♭ coming down. What you hear is what gets recorded. **After a pause of more than one second** the next key counts as going up again, whatever the last key was. Chords and the arp keep the direction their key was played in.
+
+![An arrow after the scale name: Asavari, last key going down](assets/screens/scales/16-layer-asavari-down.png)
+
+A scale whose two forms differ shows an arrow after its name in the title bar while SEL is held: **↑** for the ascending form, **↓** for the descending one, as the last key of the selected track went. Scales with one form (Western major, Bilawal…) show no arrow.
 
 ### Chords on a maqam
 
@@ -111,23 +115,23 @@ The picture under the values is **a one-octave keyboard, C to B, seen from the s
      C  D  E  F  G  A  B       short marks = white keys
 
    white mark = the root key
-   blue mark  = a key that is in the scale (its note, or a quarter tone next to it)
+   coloured mark = a key that is in the scale (its note, or a quarter tone next to it)
    grey mark  = a key that is not in the scale
 ```
 
-- **WEST major on C** (above): the root C is white, D E F G A B are blue, and the black keys are grey. That's the plain major scale.
-- **ARAB Rast on C** (below, left): D# and E are both blue. That's because E half-flat sits *between* them. Likewise A# and B are both blue, because of B half-flat.
+- **WEST major on C** (above): the root C is white, D E F G A B are coloured, and the black keys are grey. That's the plain major scale.
+- **ARAB Rast on C** (below, left): D# and E are both coloured. That's because E half-flat sits *between* them. Likewise A# and B are both coloured, because of B half-flat.
 - **ARAB Sikah on E half-flat** (below, right): **two** marks are white, D# and E, because the root itself sits between them.
 
 | Rast on C | Sikah on E half-flat |
 |---|---|
 | ![Rast](assets/screens/scales/02-page-arab-rast-C.png) | ![Sikah](assets/screens/scales/03-page-arab-sikah-Ed.png) |
 
-**The diagram can't show quarter tones exactly.** It lights the keys that *reach* a scale note. Two blue keys side by side with a missing note between them, like D# and E in Rast, mean "a half-flat lives here". For the exact notes, use the tiles in the KEY layer with chords on, or record the scale and read the step tiles (section 3).
+**The diagram can't show quarter tones exactly.** It lights the keys that *reach* a scale note. Two coloured keys side by side with a missing note between them, like D# and E in Rast, mean "a half-flat lives here". For the exact notes, use the tiles in the KEY layer with chords on, or record the scale and read the step tiles (section 3).
 
 ![TURK Segah on C, SNAP](assets/screens/scales/04-page-turk-segah-C.png)
 
-*TURK Segah on C:* only the keys near Segah's notes are blue. The QNT value shows `SNAP`.
+*TURK Segah on C:* only the keys near Segah's notes are coloured. The QNT value shows `SNAP`.
 
 ---
 

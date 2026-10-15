@@ -103,7 +103,7 @@ async function emulator() {
   let vend = a.x.web_version();
   while (mem[vend]) vend++;
   const version = Buffer.from(mem.subarray(a.x.web_version(), vend)).toString();
-  ok(/^SLOOP \d+\.\d+/.test(version) && a.x.web_flash_size() === 1 << 20, `emulator: version "${version}", 1 MiB flash`);
+  ok(/^(SLOOP|MAQAM) \d+\.\d+/.test(version) && a.x.web_flash_size() === 1 << 20, `emulator: version "${version}", 1 MiB flash`);
   const fb = new Uint16Array(a.x.memory.buffer, a.x.web_fb(), 240 * 240);
   ok(fb.some((v) => v !== 0) && a.x.web_blits() > 10, "emulator: the screen was drawn");
   a.x.web_midi_usb((0x08 | 0x80 << 8 | 48 << 16) >>> 0);
@@ -781,7 +781,7 @@ async function editorV5() {
   const C = E.CMD;
   const { m, rq, ev, done } = attachMock({ watchMs: 1000 });
   const info = E.parse[C.INFO](await rq(E.req.info()));
-  ok(info.proto === 11 && /SLOOP/.test(info.version) && info.pcount === 72 && info.gcount === 46 && info.pe0 === 64, "v5..v11: INFO ends with the protocol version (11: maqam quarter-tone steps; 10: SYN kits); 46 globals (2.5: drum DLY; 2.6: GLO > MIDI, TEXTURE, BEND; maqam: INTON)");
+  ok(info.proto === 11 && /SLOOP|MAQAM/.test(info.version) && info.pcount === 72 && info.gcount === 46 && info.pe0 === 64, "v5..v11: INFO ends with the protocol version (11: maqam quarter-tone steps; 10: SYN kits); 46 globals (2.5: drum DLY; 2.6: GLO > MIDI, TEXTURE, BEND; maqam: INTON)");
   /* the firmware says the same: ED_DRUM_STEP is command 33, INFO sends 5, P_CHORD / the master globals as the mock has them */
   const ec = readFileSync(join(HERE, "../firmware/src/editor.c"), "utf8"), pc = readFileSync(join(HERE, "../firmware/src/params.c"), "utf8");
   const en = (/enum \{ ED_INFO = 1,([^}]*)\}/.exec(ec) || [])[1] || "";
@@ -1392,10 +1392,10 @@ function editorTabs() {
   {   /* 2.4: the device's palette as tokens (:root), used through var(--...); outside them only #000 (text on a colour) */
     const css = html.slice(html.indexOf("<style>"), html.indexOf("</style>")).replace(/:root\s*\{[^}]*\}/g, "");
     const hex = [...css.matchAll(/#[0-9a-f]{3,6}\b/gi)].map((m) => m[0].toLowerCase()).filter((c) => c !== "#000");
-    ok(!hex.length && /--t1: #287cff; --t2: #1ecc70; --t3: #ffc618; --t4: #ff621a;/.test(html),
+    ok(!hex.length && /--t1: #30ad51; --t2: #e95145; --t3: #ebdc3a; --t4: #f080b8;/.test(html),
       "editor: the track colours of the device (ui_studio.c TE_COL), colours only as tokens" + (hex.length ? ` (${hex.join(" ")})` : ""));
     const te = readFileSync(join(HERE, "../firmware/src/ui_studio.c"), "utf8");
-    ok(/TE_COL\[4\] = \{RGB\(40, 124, 255\), RGB\(30, 204, 112\), RGB\(255, 198, 24\), RGB\(255, 98, 26\)\}/.test(te),
+    ok(/TE_COL\[4\] = \{RGB\(48, 173, 81\), RGB\(233, 81, 69\), RGB\(235, 220, 58\), RGB\(240, 128, 184\)\}/.test(te),   // maqam: green red yellow pink
       "editor: ... the same four as the firmware's TE_COL");
     ok(/SLOOP-FONT\*\/url\(data:font\/ttf;base64,[A-Za-z0-9+\/=]{20000,}\)/.test(html), "editor: the device's Terminus font inlined (tools/gen_webfont.py)");
   }

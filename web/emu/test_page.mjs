@@ -106,7 +106,7 @@ ok("MIDI out decode and sysex assembly", () => {
   const p = new Proc();
   await p.onMessage({ type: "load", mock: true, flash: [{ index: 3, bytes: new Uint8Array(4096).fill(7) }], master: 500 });
   const ready = posted.find((m) => m.type === "ready");
-  assert.equal(ready.version, "SLOOP mock");
+  assert.equal(ready.version, "MAQAM mock");
   assert.equal(p.ex.web_flash_dirty() > 0, true);
   const out = [new Float32Array(128), new Float32Array(128)];
   const step = () => { ctx.currentTime += 128 / 44100; p.process([], [out]); };

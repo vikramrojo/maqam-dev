@@ -88,6 +88,13 @@ Tasks 5.1–5.4, 6.1, 7.1 and 7.2 were done on 2.3 and are partly superseded by 
 - [x] 9.5 Re-render the `SCALES.md` screenshots on the merged firmware (SEL naming, CENT lock instead of STEP 2). Verify by viewing them.
 - [ ] 9.6 Mention the scales and CENT locks in upstream's `GUIDE.md` and the French quick start. Verify that the docs match the controls.
 
+## 10. Colours and predictable SNAP
+
+- [x] 10.1 Track colours: green, red, yellow, pink (OKLCH-balanced; pink for Hind Rajab) in `TE_COL` / `TE_DIM`, with every hard-coded use of the old four routed through them. Verify with rendered screens and the golden renders (sound unchanged).
+- [x] 10.2 SNAP follows the direction (design D6), and WHITE gaps follow the same rule. Verify with `scale_test` (Rast E♭/E, Asavari up/down, WEST C# up/down, a two-degree window) and `white_direction_test`.
+- [x] 10.3 Direction resets to ascending after 1 s without a key on the track, and the SEL subtitle shows ↑/↓ for two-form scales. Verify with the `seq2_test` pause test and `ui_pages_test` (arrow present only for two-form scales, fits the width).
+- [x] 10.4 Re-render the `SCALES.md` screenshots (plus an Asavari ↓ shot), update the SNAP/WHITE/direction text in `SCALES.md` and `SLOOP.md`, and rebuild the site and emulator. Verify by viewing the images and the site.
+
 ## 8. Integration checks
 
 - [ ] 8.1 Full `./build.sh` and `tests/run_tests.sh`. Verify that everything is green, the golden hashes are unchanged, `target_budget.py` is within budget, and the pool keeps at least 8 KiB spare.

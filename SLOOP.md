@@ -167,11 +167,11 @@ The FM-1 restarts on the SLOOP logo. The editor is at `http://localhost:8766/web
 
 ## Sixty seconds to a beat
 
-1. **ALGORITHM** to track **4** (orange, drums). The white keys play 16 sounds: **F3 kick**, G3 kick 2, A3 snare, B3 clap, **C4 hat**, D4 open hat… **PRESETS** picks a kit: try *808* or *BOOMBAP*.
+1. **ALGORITHM** to track **4** (pink, drums). The white keys play 16 sounds: **F3 kick**, G3 kick 2, A3 snare, B3 clap, **C4 hat**, D4 open hat… **PRESETS** picks a kit: try *808* or *BOOMBAP*.
 2. Press **REC**: *rec ready*. **Play a beat freely, at your own tempo** — no click, no count-in. Hold **OCT−** while you hit for ghost notes, **OCT+** for hard ones.
 3. **Press REC on the "1" after your last bar.** The loop closes: its length sets the tempo, the hits snap to the grid, the loop plays at once.
 4. **REC** again while it plays: you record on top (overdub). Hold **ARP** and hold the hat key: a 1/16 hat roll, recorded as ratchets.
-5. Turn **ALGORITHM** to track **1** (blue, *808 BOOM*), **REC**, play a bass line. Hold **SEL** and press the key of your song (e.g. D); on track 2 hold SEL and turn **KNOB 1** to *7TH*: every white key is now a chord of the key.
+5. Turn **ALGORITHM** to track **1** (green, *808 BOOM*), **REC**, play a bass line. Hold **SEL** and press the key of your song (e.g. D); on track 2 hold SEL and turn **KNOB 1** to *7TH*: every white key is now a chord of the key.
 6. Hold **FX** and press a key (white or black) for a punch-in effect; still holding FX, turn **KNOB 2** for DUST, **KNOB 3** for DUCK.
 7. Made a mistake? Hold **EDIT** and press **OCT−**: undo.
 
@@ -179,12 +179,12 @@ The FM-1 restarts on the SLOOP logo. The editor is at `http://localhost:8766/web
 
 | Colour | Track | Knob |
 | --- | --- | --- |
-| **blue** | 1 · synth | KNOB 1 |
-| **green** | 2 · synth | KNOB 2 |
+| **green** | 1 · synth | KNOB 1 |
+| **red** | 2 · synth | KNOB 2 |
 | **yellow** | 3 · synth | KNOB 3 |
-| **orange** | 4 · drums | KNOB 4 |
+| **pink** | 4 · drums | KNOB 4 |
 
-The four dials at the bottom of the screen show what KNOB 1–4 do now. White always means *what you are touching*. Red always means *recording*.
+The four dials at the bottom of the screen show what KNOB 1–4 do now. White always means *what you are touching*. A red disc or the REC light always means *recording* (track 2 is red too, but it is a colour of knobs and tiles, never a disc).
 
 ## The panel: tap, hold, layers
 
@@ -324,9 +324,9 @@ SLOOP plays **quarter tones**. It has **52 scales in four sets**, a **24-note gr
 
 - **Choose.** Hold **SEL**: **PRESETS** cycles the *set* (WEST → TURK → ARAB → INDIA) and picks its first scale; **KNOB 2** steps through the scales of the current set and wraps. The bar under KNOB 2 shows the place within the set. The title bar shows *root, set, scale, intonation* (for example `Ed arab sikah trad`).
 - **Any scale on any root.** Choosing a scale never moves the key of the song. A non-WEST scale shows its traditional tonic under KNOB 2 (`home Bb` for ARAB Ajam), as a hint only: play it from there, or from anywhere else; the intervals and the tuning travel with the root. The root has 24 values: hold **OCT−** (a quarter tone down) or **OCT+** (up) while you press the key in SEL to choose a half-flat or half-sharp root (OCT− + E = E half-flat, written `Ed`).
-- **Ascending and descending forms.** Some scales differ going down (ARAB Rast has B half-flat up and B-flat down; INDIA Yaman has no Pa going up). On a synth track a key lower than the previous key uses the descending form; any other key the ascending one. The note you hear is the note that is recorded.
+- **Ascending and descending forms.** Some scales differ going down (ARAB Rast has B half-flat up and B-flat down; INDIA Yaman has no Pa going up). On a synth track a key lower than the previous key uses the descending form; any other key the ascending one, and so does the first key after a pause of more than a second. A scale whose forms differ shows an arrow (up or down) after its name in the SEL title bar. The note you hear is the note that is recorded.
 - **EQUAL / TRADITIONAL.** Each scale also carries the small offsets of its tradition (TURK in Pythagorean ratios, ARAB after al-Ṣabbāgh, INDIA in just intonation), up to ±25 cents. Hold **SEL** and turn **ALGORITHM**: right = TRADITIONAL (the default), left = EQUAL (the plain 24-note grid); the title bar says `trad` or `equal`. Play the same note after each switch to hear the difference: the third of TURK Rast on C is 385 cents in TRADITIONAL and 400 in EQUAL (the tuning is applied when a note starts). WEST scales are the same in both. The setting is saved with the project; projects from before load as TRADITIONAL.
-- **Keys.** With **KEYS = SNAP**, each key covers its own semitone and the quarter tone above it and plays the highest degree at or below that (in ARAB Rast on C both the E and the E-flat key play E half-flat). With **WHITE**, the white keys walk the degrees of the scale from C4 = the root. Chords stack degrees of the scale (TRIAD in ARAB Rast on C: C, E half-flat, G); POWER is root, fifth, octave. In SEL the keys light when their semitone or a quarter tone next to it is in the scale.
+- **Keys.** With **KEYS = SNAP**, each key covers its own semitone and a quarter tone either side: it plays the degree there if there is one (its own note first); if not, going up the next degree above, going down the next below (in ARAB Rast on C both the E and the E-flat key play E half-flat; in C major, C# plays D going up and C going down). With **WHITE**, the white keys walk the degrees of the scale from C4 = the root, laid out by the form with more degrees; a degree the direction's form lacks is replaced by the next one above going up, below going down. Chords stack degrees of the scale (TRIAD in ARAB Rast on C: C, E half-flat, G); POWER is root, fifth, octave. In SEL the keys light when their semitone or a quarter tone next to it is in the scale.
 - **Quarter-tone modifier.** On a synth track, hold **OCT−** / **OCT+** while you press a key: it plays a quarter tone lower / higher (E half-flat in CHR; with SNAP the shift comes before the rounding). Because of this, **OCT−** / **OCT+** now change the octave **when released**, and only if no key was pressed while they were held; both together still reset it to 0. On the drum track they keep their ghost / hard meaning.
 - MIDI out sends the semitone of a quarter-tone note (E half-flat goes out as D#); MIDI in stays plain 12-tone.
 - New scales are a text-file edit: see [`scales/README.md`](scales/README.md).

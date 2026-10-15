@@ -117,8 +117,12 @@ It writes `build/gen/scales.h`, and `tools/build.py` runs it next to `gen_tables
 
 - **When the two forms have different lengths** (Asavari 5 up / 7 down, Yaman and Khamaj 6 / 7), the WHITE and chord layout comes from the form with more degrees, so a key never moves to another degree when the direction changes. A degree missing in the direction played gives that direction's nearest degree, the lower one on a tie. So Asavari on C going up plays C D D F G A♭ A♭ C on C4..C5, and going down C D E♭ F G A♭ B♭ C. The repeated notes are the degrees the ascending form leaves out. Found in code review, and covered by `scale_test`.
 
-### D6. SNAP rounds down from `2*semi + 1`
-For even masks (WEST), `floor` into the mask from `2s+1` gives the same result as from `2s`. That is the compatibility guarantee, and `scale_test.c` EXPECTED proves it. For maqamat, both the ♭ key and the ♮ key reach the half-flat between them, which matches how players think of "the E of Rast".
+### D6. SNAP: the key's own note, else follow the direction (revised)
+Each key covers its semitone and a quarter tone either side (`[2s-1, 2s+1]`), the same window the key lights use. A degree in the window plays. Otherwise the key moves to the next degree in the direction of travel: above going up, below going down. This replaces "round down from `2s+1`", which made a forbidden key going up stick on the note just played. The cost: Western SNAP is no longer identical to SLOOP's when ascending (C# in C major plays D going up). Descending still equals the old rule.
+
+WHITE uses the same idea for degrees missing in the direction's form (D5), and the layout stays fixed from the longer form.
+
+Direction is still judged from the previous key on that track. After more than 1 s without a key on that track, the next key counts as ascending, so a new phrase does not inherit the last one's direction. While SEL is held, the subtitle shows an up or down arrow (control-code glyphs 3 and 4) for scales whose two forms differ.
 
 ### D7. OCT− / OCT+ as a modifier; octave change on release
 - In `ui_input.c`, the octave change moves from press to release. A per-button "used" bit is set by any key press while the button is held.

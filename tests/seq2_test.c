@@ -1878,6 +1878,23 @@ static void t_direction(void)
     song.rec = 0;
     song.playing = 0;
     check(rec_has(t, 70u) == 1u && rec_has(t, 70u | NOTE_Q) == 0u, "direction: coming down from C5 it is B-flat, and B-flat is what is recorded");
+    /* 2.7: a pause of more than a second resets the direction: a lower key is then ascending again */
+    fm1_ms = 10000;
+    kb_tap(19);                                       /* C5 */
+    fm1_ms += 1200;
+    check(kb_map(t, 18) == (70u | NOTE_Q), "direction: a lower key after 1.2 s counts as ascending (B-half-flat)");
+    kb_tap(19);                                       /* C5 again, the clock where it is */
+    fm1_ms += 900;
+    check(kb_map(t, 18) == 70u, "direction: a lower key within 1 s is descending (B-flat)");
+    fm1_ms += 200;                                    /* 1.1 s after C5: over */
+    check(kb_map(t, 18) == (70u | NOTE_Q), "direction: the pause is counted from the last key (1.1 s: ascending)");
+    kb_tap(18);                                       /* B */
+    fm1_ms += 500;
+    kb_tap(14);                                       /* G: lower, within 1 s: descending */
+    check(kb_walk_desc[0] == 1u, "direction: the walk direction of the track (the SEL arrow) follows the keys");
+    fm1_ms += 2000;
+    kb_tap(11);
+    check(kb_walk_desc[0] == 0u, "direction: ... and a pause makes the next key ascending");
     kb_tap(18);                                       /* the same key again: ascending form */
     check(kb_map(t, 18) == (70u | NOTE_Q) || kb_last_key[0] == 18, "direction: a repeated key counts as up");
     steps_clear(t);

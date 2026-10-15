@@ -79,7 +79,7 @@ try {
   await page.waitForFunction(() => /SLOOP \d/.test(document.getElementById("status").textContent), null, { timeout: 8000 })
     .catch(() => {});
   const st = await page.textContent("#status");
-  ok(/^SLOOP \d/.test(st), `offline: the installer loads its firmware from the copy (${st.trim().slice(0, 40)})`);
+  ok(/^(SLOOP|Maqam) \d/.test(st), `offline: the installer loads its firmware from the copy (${st.trim().slice(0, 40)})`);
   await page.goto(base + "editor/");
   const ed = await page.evaluate(async () => {
     await document.fonts.ready;

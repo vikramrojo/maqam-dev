@@ -2,7 +2,8 @@
 # Build the FM-1 firmware (build/felucca.fwsc) with the JieLi toolchain and run the host tests.
 # The package is uploaded as an artifact of the run: Actions -> this run -> Artifacts (also linked
 # from a pull request's Checks tab). Linux x86-64 runs the JieLi tools natively (no Docker).
-# Pushes to vikramrojo/maqam-init also publish the site (installer with this firmware, editor, emulator)
+# Every run builds the site (installer with this firmware, editor, emulator) as an artifact to preview;
+# only pushes to main publish it
 # to GitHub Pages: https://vikramrojo.github.io/maqam-dev/
 name: firmware
 
@@ -94,19 +95,26 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       # The site: the installer with this firmware built in, the editor (protocol 11) and the emulator,
-      # deployed to GitHub Pages by the job below (pushes to the maqam branch only)
+      # built on every run (a preview artifact), deployed to GitHub Pages by the job below from main only
       - name: Build the site (installer, editor, emulator)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/vikramrojo/maqam-init'
         run: |
           sudo apt-get install -y -qq lld >/dev/null
           sh web/emu/build.sh
           python3 web/make_site.py build/felucca.fwsc "2.6-maqam-${GITHUB_SHA::7}" site
+          python3 tools/brand_site.py site
           ls -R site | head -40
       - name: Upload the site for Pages
-        if: github.event_name == 'push' && github.ref == 'refs/heads/vikramrojo/maqam-init'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
         with:
           path: site
+      - name: Upload the site preview
+        if: github.event_name != 'push' || github.ref != 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: maqam-site-${{ github.sha }}
+          path: site
+          retention-days: 14
 
       - name: Upload the firmware
         if: always() && hashFiles('build/felucca.fwsc') != ''
@@ -124,7 +132,7 @@ jobs:
 
   pages:
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/vikramrojo/maqam-init'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     permissions:
       pages: write

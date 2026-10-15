@@ -21,6 +21,11 @@ OUT=build/emu/sloop.wasm
     -Wl,--no-entry -Wl,-z,stack-size=524288 -Wl,--initial-memory=8388608 -Wl,--max-memory=8388608 \
     -o "$OUT" web/emu/sloop_web.c
 [ -f web/emu/index.html ] && cp web/emu/index.html build/emu/index.html   # build/emu is servable as it is
+# maqam: the page is on the site theme (Largen + web/site/maqam.css): its files go to build/emu/assets/ so build/emu stays servable alone
+# (in the site, tools/brand_site.py makes the page use webapp/assets/ instead)
+mkdir -p build/emu/assets
+cp web/site/vendor/largen/largen.css web/site/vendor/largen/largen.components.css web/site/vendor/largen/theme-dark.css \
+   web/site/maqam-theme.css web/site/maqam.css assets/fonts/rakkas/Rakkas-Regular.ttf build/emu/assets/
 echo "$OUT: $(wc -c < "$OUT" | tr -d ' ') bytes"
 if command -v node >/dev/null 2>&1; then
     node -e 'const m=new WebAssembly.Module(require("fs").readFileSync(process.argv[1]));const i=WebAssembly.Module.imports(m);console.log("imports:",i.length,"exports:",WebAssembly.Module.exports(m).length);process.exit(i.length===0?0:1)' "$OUT" \

@@ -155,6 +155,7 @@ run "regression: target cost of the render loops" python3 tests/target_budget.py
 
 run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/install_test.py
 run "the offline editor (one file, nothing next to it); the offline site (sw.js, manifest)" python3 tests/site_test.py
+run "maqam: the site as Maqam (brand_site.py: landing page, no SLOOP text, functional strings kept)" python3 tests/site_test_maqam.py
 
 if command -v node >/dev/null 2>&1; then
     run "web pages: editor protocol, samples, packages, update protocol" node web/test_web.mjs

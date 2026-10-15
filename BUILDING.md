@@ -72,6 +72,8 @@ target (Apple clang has it), `wasm-ld` (macOS: `brew install lld`) and the gener
 (Pillow, as the build above). `python3 web/make_site.py` copies both into `webapp/emu/` of the site, and leaves
 the emulator out (with a notice) if the wasm is not built. It does not need the JieLi toolchain.
 
+**The Maqam site.** `python3 tools/brand_site.py SITE_DIR`, run after `make_site.py`, brands the generated site as Maqam without touching upstream's web sources: it rewrites the displayed text from a table in the script (it fails, naming the entry, when upstream changes a string), puts in the Rakkas wordmark and icons (Pillow), writes the landing page (`tools/brand_site_index.html`, with the "Forward compatible with SLOOP" section and the credits), and renames the firmware download to `maqam-VER.fwsc`. `tests/site_test_maqam.py` checks it. Ids, file names and storage keys code depends on keep their `sloop` names on purpose; the script's docstring lists them.
+
 Tests: `tests/hostapp_test` (native, in `tests/run_tests.sh`; the golden is `tests/golden_hostapp.txt`),
 `node web/test_web.mjs` (also renders the golden scenario from the wasm and compares), `node web/emu/test_page.mjs`
 (the page).

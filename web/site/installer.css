@@ -1,0 +1,29 @@
+/* The installer page (upstream's web/index_pkg.html, re-skinned by tools/brand_site.py): its own class names and ids
+   mapped onto largen slots, so it looks like the rest of the site. Load after maqam.css. Components only, slots from
+   --tone-* tokens (the red accent is the "danger" tone). Same column width and type as every other page: the page
+   layout comes from maqam.css (.page), not from here. */
+@layer largen.components {
+  .installer .top { display: flex; justify-content: flex-end; }
+  .lang { --bg: transparent; --fg: var(--ink-muted); --border-width: 0; --pad: 0; --font-size: .8rem; --weight: 400;
+    text-decoration: underline; text-transform: lowercase; }
+  .tiles { --gap: .4rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); }
+  .tile { --bg: var(--surface); --pad: .7em .7em .85em; --gap: .25em; display: flex; flex-direction: column;
+    border-block-start: 3px solid var(--tone); }
+  .tile:nth-child(1) { --tone: var(--primary); } .tile:nth-child(2) { --tone: var(--success); }
+  .tile:nth-child(3) { --tone: var(--warning); } .tile:nth-child(4) { --tone: var(--danger); }
+  .tile b { --fg: var(--tone-ink); --font-size: 1.5rem; --weight: var(--weight-bold); --line-height: 1.1; }
+  .tile span { --fg: var(--ink-muted); --font-size: .78rem; text-transform: lowercase; }
+  #go { --tone: var(--danger); --tone-contrast: var(--danger-on); --pad: .9em 2.4em; --font-size: .95rem; --weight: 650;
+    letter-spacing: .08em; text-transform: uppercase; }
+  #go:disabled, #stock-go:disabled { --bg: var(--surface); --fg: var(--ink-muted); --border-color: var(--line); cursor: default; opacity: 1; }
+  #stock-go { --bg: var(--surface); --fg: var(--ink); --border-color: var(--line); --pad: .8em 1.1em; }
+  #bar { --tone: var(--danger); margin-block-start: var(--space-4); }
+  #status { min-block-size: 1.6em; font-variant-numeric: tabular-nums; }
+  #log { --fg: var(--ink-muted); --font-size: .72rem; white-space: pre-wrap; max-block-size: 10rem; overflow: auto; }
+  .ed { --bg: var(--surface); --fg: var(--ink); --border-color: var(--line); --pad: .7em 1em; display: inline-block; text-decoration: none; white-space: normal; }
+  .small { --fg: var(--ink-muted); --font-size: .85rem; }
+  .small a { --fg: currentColor; }
+  details { --pad: 0; }
+  summary { --weight: var(--weight-bold); }
+  hr { margin-block: var(--space-6); }
+}

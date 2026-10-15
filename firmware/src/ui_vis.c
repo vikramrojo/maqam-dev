@@ -432,14 +432,14 @@ static void vis_ring(void)
 {
     int32_t k = vs.kick, r0 = 52 + k * 18 / 255, rc = r0 * 6 / 10, sc = vs.peak > vs.scale ? vs.peak : vs.scale;
     int32_t px = 0, py = 0, i;
-    vis_ellipse(120, 120, rc, rc, RGB(40 + 140 * k / 255, 14 + 50 * k / 255, 4));
+    vis_ellipse(120, 120, rc, rc, RGB(35 + 125 * k / 255, 18 + 52 * k / 255, 26 + 80 * k / 255));   /* maqam: the kick's glow in the drums' pink */
     for (i = 0; i <= 180; i++) {                    /* the wave round the ring, 2 degrees a point */
         uint32_t a = (uint32_t)(i % 180) * 1024u / 180u, j = 20u + (uint32_t)(i % 180) * 2u;
         int32_t s = (vis_l[j - 2u] + vis_l[j - 1u] + vis_l[j] + vis_l[j + 1u] + vis_l[j + 2u]) / 5;
         int32_t rr = r0 + s * 20 / (sc > 1600 ? sc : 1600), x = 120 + ((icos(a) * rr) >> 15), y = 120 + ((isin(a) * rr) >> 15);
         if (i) {
-            cv_line(px, py - 1, x, y - 1, RGB(120, 40, 10));
-            cv_line(px, py + 2, x, y + 2, RGB(120, 40, 10));
+            cv_line(px, py - 1, x, y - 1, TE_DIM[3]);   /* maqam: the drums' colour */
+            cv_line(px, py + 2, x, y + 2, TE_DIM[3]);
             vis_thick(px, py, x, y, TE_COL[3]);
         }
         px = x, py = y;
@@ -557,7 +557,7 @@ static void vis_sloop(void)
 {
     static const int16_t BAND[4][4] = {{691, 1035, 1659, 1938}, {1118, 1462, 2006, 2285}, {1544, 1888, 2353, 2632},
                                        {1971, 2315, 2700, 2980}};   /* y0, y1, x right at y0, at y1 (1/16 px) */
-    static const uint16_t DIMC[4] = {RGB(9, 27, 56), RGB(7, 45, 25), RGB(56, 44, 5), RGB(56, 22, 6)};
+    static const uint16_t DIMC[4] = {RGB3(TRK_X0), RGB3(TRK_X1), RGB3(TRK_X2), RGB3(TRK_X3)};   /* maqam: the track colours, deep */
     uint32_t bq = vis_beat_q8(), i;
     int32_t ang = (isin(bq) * 11) >> 15;            /* +-4 degrees (1024 a turn), a sway every four beats */
     int32_t sn = isin((uint32_t)ang), cs = icos((uint32_t)ang);
@@ -591,7 +591,7 @@ static void vis_sloop(void)
     for (x = 0; x < 240; x++) {
         int32_t s = x ? (vis_l[x - 1] + 2 * vis_l[x] + vis_l[x + 1]) / 4 : vis_l[0];   /* (smoothed: a sea, not a hiss) */
         int32_t y = 182 + s * 5 / sc + ((isin((uint32_t)(x * 9) + bq) * 3) >> 15);
-        cv_rect(x, y, 1, 240 - y, RGB(12, 34, 76));
+        cv_rect(x, y, 1, 240 - y, RGB3(TRK_X0));   /* maqam: the sea in track 1's deep colour */
         cv_rect(x, y, 1, 2, TE_COL[0]);
     }
 }

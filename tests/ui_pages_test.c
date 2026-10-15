@@ -452,11 +452,11 @@ int main(int argc, char **argv)
     {   /* maqam: SCL held + ALGORITHM: the intonation (EQUAL / TRADITIONAL), shown in the subtitle */
         char sb[24];
         check(song.g[G_INTON] == 1, "SCL: the intonation starts TRADITIONAL");
-        scl_sub(sb, sizeof sb, trk[0].p[P_ROOT], scale_index(&trk[0]));
+        scl_sub(sb, sizeof sb, trk[0].p[P_ROOT], scale_index(&trk[0]), 0);
         check(!strcmp(sb, "D west chr trad"), "SCL subtitle: root, set, scale, 'trad'");
         encs[panel.enc[EN_ALGO]] = -1; frame();
         check(song.g[G_INTON] == 0, "SCL + ALGORITHM (left): EQUAL");
-        scl_sub(sb, sizeof sb, trk[0].p[P_ROOT], scale_index(&trk[0]));
+        scl_sub(sb, sizeof sb, trk[0].p[P_ROOT], scale_index(&trk[0]), 0);
         check(!strcmp(sb, "D west chr equal"), "SCL subtitle: 'equal'");
         ppm("layer-key-equal");
         encs[panel.enc[EN_ALGO]] = 1; frame();
@@ -499,19 +499,21 @@ int main(int argc, char **argv)
         encs[panel.enc[EN_K2]] = 4; frame();
         check(trk[0].p[P_SCALE] == 35 && trk[0].p[P_ROOT] == 4, "SCL + KNOB 2: ARAB Ajam (35), the root unchanged");
         trk[0].p[P_ROOT] = 0;                          /* Ajam on C: the home hint is B-flat, the root stays C */
-        scl_sub(sb, sizeof sb, trk[0].p[P_ROOT], scale_index(&trk[0]));
+        scl_sub(sb, sizeof sb, trk[0].p[P_ROOT], scale_index(&trk[0]), 0);
         scl_home(hb, sizeof hb, scale_index(&trk[0]));
         check(!strcmp(sb, "C arab ajam trad") && !strcmp(hb, "home Bb") && trk[0].p[P_ROOT] == 0, "SCL: ARAB Ajam on C shows 'home Bb', the root stays C");
-        scl_sub(sb, sizeof sb, 7, 31);
+        scl_sub(sb, sizeof sb, 7, 31, 0);
         scl_home(hb, sizeof hb, 31);
-        check(!strcmp(sb, "E\x01 arab sikah trad") && !strcmp(hb, "home E\x01"), "SCL subtitle: 'E\x01 arab sikah trad', home E\x01");
-        scl_sub(sb, sizeof sb, 0, 1);
+        check(!strcmp(sb, "E\x01 arab sikah\x03 trad") && !strcmp(hb, "home E\x01"), "SCL subtitle: 'E<half-flat> arab sikah<up> trad' (two forms: an arrow), home E<half-flat>");
+        scl_sub(sb, sizeof sb, 7, 31, 1);
+        check(!strcmp(sb, "E\x01 arab sikah\x04 trad"), "SCL subtitle: the same going down: the down arrow");
+        scl_sub(sb, sizeof sb, 0, 1, 0);
         scl_home(hb, sizeof hb, 1);
         check(!strcmp(sb, "C west maj trad") && !hb[0], "SCL subtitle: WEST: 'C west maj trad', no home hint");
         for (i = 0; i < 24u * NSCALES * 2u; i++) {     /* the widest subtitle and hint against the 240 px screen */
             uint32_t w;
             song.g[G_INTON] = (int16_t)(i & 1u);
-            scl_sub(sb, sizeof sb, (i >> 1) % 24u, (i >> 1) / 24u);
+            scl_sub(sb, sizeof sb, (i >> 1) % 24u, (i >> 1) / 24u, (i >> 6) & 1u);   /* (both arrows over the sweep) */
             w = text_w(&FONT_S, sb);
             if (w > worst) { worst = w; wr = (i >> 1) % 24u; ws = (i >> 1) / 24u; }
             scl_home(hb, sizeof hb, (i >> 1) / 24u);
@@ -526,6 +528,32 @@ int main(int argc, char **argv)
         trk[0].p[P_CHORD] = 0; frames(150);
         ppm("layer-key-arab");
         trk[0].p[P_SCALE] = trk[1].p[P_SCALE] = trk[2].p[P_SCALE] = 0; trk[0].p[P_ROOT] = trk[1].p[P_ROOT] = trk[2].p[P_ROOT] = 4;
+    }
+    {   /* maqam 2.7: the arrow of the SEL subtitle: only for a scale whose forms differ, the direction of the last key of the track */
+        uint32_t asv = 0, i2;
+        for (i2 = 0; i2 < NSCALES; i2++)
+            if (!strcmp(SCALES[i2].code, "ASAVR"))
+                asv = i2;
+        release(B_SCL); frames(3);
+        trk[0].p[P_SCALE] = trk[1].p[P_SCALE] = trk[2].p[P_SCALE] = (int16_t)asv;
+        song.sel = 0; trk[0].p[P_QUANT] = 0; trk[0].p[P_CHORD] = 0;
+        fm1_ms += 3000;
+        key(14);                                           /* G, then C: down within a second */
+        key(7);
+        press(B_SCL); frames(12);
+        check(strchr(sub_line(), 4) != 0 && strchr(sub_line(), 3) == 0, "SEL subtitle: Asavari after a descending key: the down arrow");
+        ppm("layer-asavari-down");
+        release(B_SCL); frames(3);
+        fm1_ms += 3000;
+        key(9);                                            /* after a pause: ascending */
+        press(B_SCL); frames(12);
+        check(strchr(sub_line(), 3) != 0 && strchr(sub_line(), 4) == 0, "SEL subtitle: ... after a pause and a key: the up arrow");
+        release(B_SCL); frames(3);
+        trk[0].p[P_SCALE] = trk[1].p[P_SCALE] = trk[2].p[P_SCALE] = 1;      /* MAJ: one form */
+        press(B_SCL); frames(12);
+        check(strchr(sub_line(), 3) == 0 && strchr(sub_line(), 4) == 0, "SEL subtitle: a scale with one form: no arrow");
+        release(B_SCL); frames(3);
+        press(B_SCL); frames(10);
     }
     trk[0].p[P_SCALE] = trk[1].p[P_SCALE] = trk[2].p[P_SCALE] = 16;
     encs[panel.enc[EN_K2]] = 4; frame();           /* maqam: KNOB 2 through the scales: the root stays (D15) */

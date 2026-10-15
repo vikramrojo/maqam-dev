@@ -1,34 +1,29 @@
 <!doctype html>
 <!--
-  SLOOP in the browser: the real firmware, compiled to WebAssembly, behind a drawing of the FM-1.
+  Maqam in the browser: the real firmware, compiled to WebAssembly, behind a drawing of the FM-1.
   SPDX-License-Identifier: GPL-3.0-only
 
   The panel drawing, the hit-target / touch system, knob drag and wheel, the latch, the computer
   keyboard map, the canvas drawing, the start button and the worklet loop are ported from
   fm1-x0x/web/emu (https://github.com/charlesvestal/fm1-x0x), (c) Charles Vestal, GPL-3.0-only.
-  Adapted for SLOOP: SEL button, Web MIDI in, IndexedDB flash, modalities panel.
+  Adapted for Maqam: SEL button, Web MIDI in, IndexedDB flash, modalities panel.
 -->
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <link rel="icon" href="data:,">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SLOOP in the browser</title>
-<meta name="description" content="Play SLOOP, the groovebox firmware for the M-VAVE FM-1, in your browser: the same code the FM-1 runs.">
+<title>Maqam in the browser</title>
+<meta name="description" content="Play Maqam, the groovebox firmware for the M-VAVE FM-1, in your browser: the same code the FM-1 runs.">
+<link rel="stylesheet" href="assets/largen.css">
+<link rel="stylesheet" href="assets/largen.components.css">
+<link rel="stylesheet" href="assets/theme-dark.css">
+<link rel="stylesheet" href="assets/maqam-theme.css">
+<link rel="stylesheet" href="assets/maqam.css">
 <style>
-:root { --ground: #f4f5f6; --ink: #1c1f23; --muted: #5b626a; --rule: #d9dde1; --accent: #c8700a; --card: #fff; color-scheme: light; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --ground: #131518; --ink: #e6e8eb; --muted: #9aa1a9; --rule: #2d3137; --accent: #f0a043; --card: #1a1d21; color-scheme: dark; }
-}
-:root[data-theme="dark"] { --ground: #131518; --ink: #e6e8eb; --muted: #9aa1a9; --rule: #2d3137; --accent: #f0a043; --card: #1a1d21; color-scheme: dark; }
-body { background: var(--ground); color: var(--ink); margin: 0; padding-inline: 16px; padding-block: 28px 48px;
-       font: 400 16px/1.55 "Helvetica Neue", Arial, sans-serif; }
-main { max-width: 1040px; margin: 0 auto; }
-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem 1.2rem; margin: 0 0 1rem; }
-h1 { font: 700 2rem/1.1 "Arial Narrow", Arial, sans-serif; margin: 0; }
-header p { margin: 0; color: var(--muted); }
-header nav { margin-left: auto; display: flex; gap: 1rem; }
-a { color: var(--accent); }
+/* The page is on the shared Maqam theme (web/site/maqam.css on Largen); the device drawing keeps its own panel colours.
+   When served alone (build/emu), web/emu/build.sh copies the theme files to assets/; in the site tools/brand_site.py
+   points these links at ../assets/. */
 .device { position: relative; width: 100%; aspect-ratio: 1000 / 640; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
 .device svg { pointer-events: none; position: absolute; inset: 0; width: 100%; height: 100%; }
 .hit { position: absolute; touch-action: none; cursor: pointer; -webkit-tap-highlight-color: transparent; border-radius: 12px; }
@@ -44,52 +39,61 @@ a { color: var(--accent); }
 .lit .keyface.white { fill: #f3b25c; }
 .lit .keyface.black { fill: #e0902c; }
 .start { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(10, 11, 13, .55); border-radius: 4.4% / 6.9%; }
-.start button { font: 600 1.25rem "Arial Narrow", Arial, sans-serif; letter-spacing: .04em; padding: .7em 1.6em;
-                border-radius: 999px; border: 0; background: #f0a043; color: #1b1205; cursor: pointer; }
 .start[hidden] { display: none; }
 .start button:disabled { opacity: .6; cursor: progress; }
-.turn { display: none; margin: 0 0 .8rem; color: var(--muted); font-size: .92rem; }
+.turn { display: none; margin: 0 0 .8rem; }
 @media (orientation: portrait) and (max-width: 700px) { .turn { display: block; } }
-.bar { display: flex; flex-wrap: wrap; gap: .5rem 1.2rem; align-items: center; margin: .9rem 0 0; color: var(--muted); font-size: .92rem; }
-.bar button, .midi button { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: .3em .8em; cursor: pointer; }
-.bar .num { font-variant-numeric: tabular-nums; }
-.err { color: #c0392b; }
-.midi { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; margin: .9rem 0 0; font-size: .92rem; }
-.midi select { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: .25em .5em; max-width: 18rem; }
-.midi fieldset { border: 0; padding: 0; margin: 0; display: flex; gap: .8rem; align-items: center; }
-.midi legend { float: left; padding: 0 .5rem 0 0; }
-.midi .mstat { color: var(--muted); }
-h2 { font: 600 1.1rem "Arial Narrow", Arial, sans-serif; margin: 0 0 .3rem; }
-.mods { margin: 1.6rem 0 0; }
-.mods ul { list-style: none; padding: 0; margin: 0; display: grid; gap: .4rem; }
-.mods li { display: flex; flex-wrap: wrap; gap: .2rem .8rem; align-items: baseline; padding: .45rem .8rem; border: 1px solid var(--rule); border-radius: 8px; background: var(--card); }
-.mods b { min-width: 11rem; font-weight: 600; }
-.mods .desc { flex: 1 1 18rem; color: var(--muted); }
-.badge { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; border-radius: 999px; padding: .05em .7em; border: 1px solid var(--rule); min-width: 6.5rem; text-align: center; }
-.badge.working { background: #2e7d32; color: #fff; border-color: #2e7d32; }
-.badge.logged { background: #1565c0; color: #fff; border-color: #1565c0; }
-.badge.covered { background: #6a1b9a; color: #fff; border-color: #6a1b9a; }
-.badge.unavailable { background: transparent; color: var(--muted); }
-.logs { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1rem 2rem; margin: 1rem 0 0; }
-.log { height: 11rem; overflow: auto; margin: 0; padding: .4rem .6rem; border: 1px solid var(--rule); border-radius: 8px; background: var(--card);
-       font: 12px/1.4 ui-monospace, Menlo, monospace; white-space: pre; }
-.logs label { font-size: .85rem; color: var(--muted); }
-.help { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem 2rem; margin: 1.6rem 0 0; }
-.help p, .help ul { margin: 0; color: var(--muted); max-width: 60ch; }
-.help ul { padding-left: 1.1rem; }
-kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); border: 1px solid var(--rule); border-radius: 4px; padding: 0 .3em; color: var(--ink); }
-.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #1c1f23; color: #fff; padding: .6em 1.2em; border-radius: 8px; z-index: 9; }
-.toast[hidden] { display: none; }
+.device { margin-inline: auto; max-inline-size: 64rem; }
+@layer largen.components {
+  .emu-head { --gap: .3rem 1.2rem; display: flex; flex-wrap: wrap; align-items: baseline; }
+  .emu-head p { --fg: var(--ink-muted); }
+  #mockbadge { --tone: var(--warning); }
+  .turn { --fg: var(--ink-muted); --font-size: .92rem; }
+  .bar { --fg: var(--ink-muted); --font-size: .92rem; --gap: .5rem 1.2rem; display: flex; flex-wrap: wrap; align-items: center; }
+  .bar .num { font-variant-numeric: tabular-nums; }
+  .err { --tone: var(--danger); --fg: var(--tone-ink); }
+  .start button { --tone: var(--danger); --tone-contrast: var(--danger-on); --radius: 2em; --pad: .7em 1.6em; --font-size: 1.25rem; --weight: 650; letter-spacing: .04em; }
+  .start button:disabled { opacity: .6; cursor: progress; }
+  .midi { --gap: .4rem 1rem; --font-size: .92rem; display: flex; flex-wrap: wrap; align-items: center; }
+  .midi select { inline-size: auto; max-inline-size: 18rem; --pad: .25em .5em; }
+  .midi fieldset { --border-width: 0; --pad: 0; --gap: .8rem; display: flex; align-items: center; margin: 0; }
+  .midi legend { float: left; padding-inline-end: .5rem; }
+  .midi input[type="radio"], .midi input[type="checkbox"] { inline-size: auto; }
+  .midi .mstat { --fg: var(--ink-muted); }
+  .mods > ul { --gap: .4rem; --pad: 0; display: grid; list-style: none; margin: 0; }
+  .mods li { --bg: var(--surface); --border-color: var(--line); --border-width: var(--hairline); --border-style: solid; --radius: var(--radius-sm);
+    --pad: .45rem .8rem; --gap: .2rem .8rem; display: flex; flex-wrap: wrap; align-items: baseline; }
+  .mods b { min-inline-size: 11rem; --weight: var(--weight-bold); }
+  .mods .desc { --fg: var(--ink-muted); flex: 1 1 18rem; }
+  .mods .badge { min-inline-size: 6.5rem; justify-content: center; text-transform: uppercase; letter-spacing: .05em; }
+  .badge.working { --tone: var(--success); } .badge.logged { --tone: var(--primary); }
+  .badge.covered { --tone: var(--warning); } .badge.unavailable { --tone: var(--secondary); --bg: transparent; }
+  .logs { --gap: 1rem 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); }
+  .logs h2 { --font-size: 1.1rem; }
+  .logs label { --fg: var(--ink-muted); --font-size: .85rem; --weight: 400; }
+  .logs input { inline-size: auto; display: inline; }
+  .log { --bg: var(--surface); --border-color: var(--line); --border-width: var(--hairline); --border-style: solid; --radius: var(--radius-sm);
+    --pad: .4rem .6rem; --font-size: .75rem; --line-height: 1.4; block-size: 11rem; overflow: auto; margin: 0; white-space: pre; }
+  .help { --gap: 1rem 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
+  .help p, .help ul { --fg: var(--ink-muted); max-inline-size: 60ch; margin: 0; }
+  .help ul { padding-inline-start: 1.1rem; }
+  kbd { --bg: var(--surface); --fg: var(--ink); --border-color: var(--line); --border-width: var(--hairline); --border-style: solid;
+    --radius: var(--radius-sm); --pad: 0 .3em; --font-size: .85em; --weight: 650; }
+  .toast { --bg: var(--ink); --fg: var(--canvas); --radius: var(--radius-md); --pad: .6em 1.2em; position: fixed; inset-inline-start: 50%;
+    inset-block-end: 24px; transform: translateX(-50%); z-index: 9; }
+  .toast[hidden] { display: none; }
+}
 </style>
 </head>
 <body>
-<main>
-<header>
-  <h1>SLOOP</h1>
-  <p>in the browser: the same code the FM-1 runs</p>
-  <span id="mockbadge" hidden>MOCK MODE (no firmware)</span>
-  <nav><a href="https://github.com/vikramrojo/maqam-dev">Source</a></nav>
-</header>
+<header class="site-header center"><a class="wordmark" href="../../" title="Maqam">Maqam</a><nav class="site-nav" aria-label="Site"><a href="../../">Home</a><a href="../installer/">Install</a><a href="../emu/" aria-current="page">Try it</a><a href="../guide/">How to play</a><a href="../scales/">The 52 scales</a><a href="https://github.com/vikramrojo/maqam-dev">Source</a></nav></header>
+<div class="rule-wrap center"><div class="rule" aria-hidden="true"><i data-tone="success"></i><i data-tone="danger"></i><i data-tone="warning"></i><i data-tone="secondary"></i></div></div>
+<main class="page center stack">
+<div class="emu-head">
+  <h1>Maqam in the browser</h1>
+  <p>the same code the FM-1 runs</p>
+  <span id="mockbadge" class="badge" hidden>MOCK MODE (no firmware)</span>
+</div>
 
 <p class="turn">Turn your phone sideways for bigger controls.</p>
 <div class="device" id="device">
@@ -98,15 +102,15 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
   <div class="start" id="start"><button id="go" type="button">Switch on</button></div>
 </div>
 
-<div class="bar">
+<div class="bar toolbar">
   <span id="status" role="status">Off. Sound starts when you switch it on.</span>
   <span class="num" id="version"></span>
   <span class="num" id="cpu"></span>
   <span id="persist"></span>
-  <button id="reset" type="button" title="Forget the saved projects, presets and settings, and start again from the factory settings">Factory reset</button>
+  <button id="reset" type="button" data-tone="neutral" data-variant="outline" title="Forget the saved projects, presets and settings, and start again from the factory settings">Factory reset</button>
 </div>
 
-<div class="midi">
+<div class="midi cluster">
   <label for="midiIn">MIDI in</label>
   <select id="midiIn" aria-label="MIDI input device"><option value="">None</option></select>
   <fieldset><legend>Route as</legend>
@@ -118,7 +122,7 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
 
 <section class="mods" aria-labelledby="mods-h">
   <h2 id="mods-h">FM-1 features in the emulator</h2>
-  <ul id="modlist"></ul>
+  <ul id="modlist" class="stack"></ul>
   <div class="logs">
     <div><h2>MIDI out log <label><input type="checkbox" id="hideClock" checked> hide clock</label></h2>
       <pre class="log" id="logOut" role="log" aria-label="MIDI out log" tabindex="0"></pre></div>
@@ -144,13 +148,14 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
     </ul>
   </div>
   <div>
-    <h2>Playing SLOOP</h2>
+    <h2>Playing Maqam</h2>
     <p>Every function button is a layer: hold FX, SEL, EDIT, GLO, SAVE, ARP or SEQ and the 16 white keys and the four knobs change job.
       Tap HOME for the tracks, hold it for the menu (LIGHTS, KEYS, NOTES). ALGORITHM picks the track, PRESETS the sound.
       Your projects and settings stay in this browser.</p>
   </div>
 </section>
 </main>
+<footer class="site-footer center"><p>Maqam &middot; free software (GPL-3.0) &middot; <a href="https://github.com/vikramrojo/maqam-dev">Source</a> &middot; <a href="https://github.com/vikramrojo/maqam-dev/blob/main/LICENSING.md">Licences and credits</a> &middot; styled with <a href="https://largen.dev">Largen</a> (MIT)</p><p>Based on <a href="https://github.com/isod89/sloop-fm1">SLOOP</a> by isod89 and <a href="https://github.com/hugelton/Felucca">Felucca</a> by Leo Kuroshita, H&uuml;gelton Instruments. M-VAVE and FM-1 are trademarks of their respective owners.</p></footer>
 <div class="toast" id="toast" role="status" hidden></div>
 
 <!-- Pure helpers, shared by the page, the worklet (prepended to its source) and test_page.mjs. -->
@@ -268,7 +273,7 @@ function mockDevice() {
   };
   const mo = (b1, b2, b3, cin) => { const w = u32(); w[O.MO / 4 + (mow & 255)] = ((cin | (b1 << 8) | (b2 << 16) | (b3 << 24)) >>> 0); mow++; w[O.MOW / 4] = mow; };
   const mark = (sector) => { u32()[O.DIRTY / 4 + (sector >> 5)] |= 1 << (sector & 31); };
-  const ver = "SLOOP mock"; for (let i = 0; i < ver.length; i++) u8()[O.VER + i] = ver.charCodeAt(i);
+  const ver = "MAQAM mock"; for (let i = 0; i < ver.length; i++) u8()[O.VER + i] = ver.charCodeAt(i);
   return {
     memory: mem,
     web_boot() { draw(); },
@@ -886,7 +891,7 @@ function onFrame(m) {
   drawLights(m.ledsBtn, m.ledsKey);
   window.sloopLast = m;
   if (m.peak > (window.sloopPeak || 0)) window.sloopPeak = m.peak;
-  if (m.load !== undefined) $("cpu").textContent = `SLOOP uses ${m.load}% of this computer's time`;
+  if (m.load !== undefined) $("cpu").textContent = `Maqam uses ${m.load}% of this computer's time`;
   if (m.flash) flashSave(m.flash);
   if (m.events & 1) toast("UBOOT is not available in the emulator");
   new Set(MODALITIES.map((x) => x.adapter)).forEach((a) => a.onFrame && a.onFrame(m));

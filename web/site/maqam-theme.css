@@ -1,0 +1,30 @@
+/* Maqam site theme, on Largen 0.6.3 (MIT, https://largen.dev): tokens and a font, nothing else. Load largen.css,
+   largen.components.css, theme-dark.css, then this file, then maqam.css (the components), with <html data-theme="dark">.
+
+   The palette is four colours in OKLCH, balanced so none outshines the others on the dark canvas: lightness close
+   (yellow higher, so it still reads as yellow), chroma matched. Pink stands for Hind Rajab.
+     green  oklch(0.66 0.170 148)    red   oklch(0.64 0.190 28)
+     yellow oklch(0.88 0.170 104)    pink  oklch(0.74 0.150 350)
+   They fill largen's tones: primary / success / info = green, danger = red (the accent, not an error),
+   warning = yellow, secondary = pink, neutral = white. The rule under the header: green, red, yellow, pink.
+   All four are light enough that black reads best on them.
+   (The earlier palette was the FM-1's four track colours: blue #287cff, green #1ecc70, yellow #ffc618, orange #ff621a.)
+   Each has an -on pair dark enough to read on it. Canvas, surface, line and ink follow the old page: near-black, dark grey
+   cards and hairlines, near-white text, grey muted text. A palette may live in a theme (SKILL.md, rule 8): the --fm-*
+   names below, and only the tokens point at them. */
+@font-face { font-family: "Rakkas"; src: url("Rakkas-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+
+@layer largen.tokens {
+  [data-theme="dark"] {
+    --pal-green: oklch(0.66 0.170 148); --pal-red: oklch(0.64 0.190 28); --pal-yellow: oklch(0.88 0.170 104); --pal-pink: oklch(0.74 0.150 350);
+    --canvas: #08090b; --ink: #f2f2f2; --ink-muted: #8a8a92; --surface: #16161a; --line: #2a2a30;
+    --primary: var(--pal-green);  --primary-on: #000000;
+    --info: var(--pal-green);     --info-on: #000000;
+    --success: var(--pal-green);  --success-on: #000000;
+    --warning: var(--pal-yellow); --warning-on: #000000;
+    --danger: var(--pal-red);     --danger-on: #000000;
+    --secondary: var(--pal-pink); --secondary-on: #000000;
+    --neutral: #ffffff;           --neutral-on: #000000;
+    --font-display: "Rakkas", Georgia, "Times New Roman", serif;
+  }
+}

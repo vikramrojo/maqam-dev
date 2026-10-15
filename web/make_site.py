@@ -33,7 +33,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-ONLINE = "https://isod89.github.io/sloop-fm1/"                 # (the offline editor's links)
+ONLINE = "https://vikramrojo.github.io/maqam-dev/"                 # (the offline editor's links)  # maqam: this fork's site
 
 
 def offline_editor(html):
@@ -81,9 +81,9 @@ def app_files(out, version, fw_name):
     for f in ("preview.js", "preview-worklet.js", "sloop-preview.wasm"):
         if (app / "editor" / f).exists():
             keep["editor/" + f] = app / "editor" / f
-    for f in ("index.html", "sloop.wasm"):        # maqam: the emulator, when the site has it
-        if (app / "emu" / f).exists():
-            keep["emu/" + f] = app / "emu" / f
+    for f, k in (("index.html", "emu/"), ("sloop.wasm", "emu/sloop.wasm")):   # maqam: the emulator, when the site has it
+        if (app / "emu" / f).exists():            # ("emu/", not "emu/index.html": sw.js key() folds index.html into the folder)
+            keep[k] = app / "emu" / f
     for f in ICONS:
         keep[f] = app / f
     h = hashlib.sha256()

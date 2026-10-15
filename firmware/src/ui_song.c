@@ -21,7 +21,7 @@ static void song_screen_draw(void)
     song_sane();
     uint32_t i, start = song_cursor > 3u ? song_cursor - 3u : 0u;
     static uint32_t previous;
-    static const uint16_t SC[4] = {RGB(40, 124, 255), RGB(30, 204, 112), RGB(255, 198, 24), RGB(255, 98, 26)};
+    static const uint16_t SC[4] = {RGB3(TRK_C0), RGB3(TRK_C1), RGB3(TRK_C2), RGB3(TRK_C3)};   /* maqam: the track colours (pitch24.h) */
     uint32_t sig = song_cursor + 17u * arrangement_enabled + 37u * song.playing +
                    71u * arrangement_clock.index + 127u * arrangement_clock.bar +
                    257u * arrangement.count + 509u * song.g[G_BPM];
@@ -39,7 +39,7 @@ static void song_screen_draw(void)
     cv_text(236 - text_w(&FONT_S, b) - 28, 4, &FONT_S, b, C_WHITE);
     cv_text(236 - 24, 4, &FONT_S, "bpm", RGB(118, 118, 126));
     cv_text(236 - text_w(&FONT_S, song.playing ? "playing" : "stopped"), 20, &FONT_S,
-            song.playing ? "playing" : "stopped", song.playing ? SC[1] : RGB(118, 118, 126));
+            song.playing ? "playing" : "stopped", song.playing ? SC[0] : RGB(118, 118, 126));
     cv_rect(0, 39, 240, 1, RGB(26, 26, 30));
     cv_blit(0, 0);
     for (i = 0; i < 5u; i++) {
@@ -62,7 +62,7 @@ static void song_screen_draw(void)
             cv_text(60 + w + 6, 5, &FONT_S, used ? b : "empty", selected ? C_WHITE : RGB(118, 118, 126));
             if (arrangement_clock.running && arrangement_clock.index == pos) {
                 cv_rect(60, 19, (int32_t)(arrangement_clock.bar + 1u) * w / (e->bars ? e->bars : 1), 2, C_WHITE);
-                cv_rect(226, 9, 9, 9, SC[1]);
+                cv_rect(226, 9, 9, 9, SC[0]);
             }
             if (selected) cv_rect(0, 1, 240, 1, RGB(54, 54, 60)), cv_rect(0, 24, 240, 1, RGB(54, 54, 60));
         }

@@ -890,8 +890,8 @@ static void layer_screen_draw(void)
         break;
     }
     case LY_SCALE: {                                    /* the white keys' notes / chords; the root lit */
-        col = TE_COL[1];
-        scl_sub(sub, sizeof sub, (uint32_t)trk[0].p[P_ROOT], scale_index(&trk[0]));   /* maqam: the subtitle (set, home: task 4.2) */
+        col = TE_COL[0];                                /* maqam: green (slot 1 is red now, the recording colour's neighbour) */
+        scl_sub(sub, sizeof sub, (uint32_t)trk[0].p[P_ROOT], scale_index(&trk[0]), kb_walk_desc[trk_index(TSEL) % NTRK]);   /* maqam: the subtitle (set, home: task 4.2) */
         for (i = 0; i < 16u; i++) {
             uint32_t k = key_of_white(i), pc = (53u + k) % 12u, in = key_in_scale(&trk[0], k, 0), isroot = key_in_scale(&trk[0], k, 1);
             int32_t mod = oct_mod(fm1_in.buttons, dyn_bit[0], dyn_bit[1], 0u);

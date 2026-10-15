@@ -9,6 +9,31 @@
 #ifndef PITCH24_H
 #define PITCH24_H
 
+/* the track colours (user-approved, OKLCH-balanced). Track 1 green, 2 red, 3 yellow, 4 / the drums pink; the knobs, tiles, dials and
+ * the visualiser take them through TE_COL / TE_MID / TE_DIM (ui_studio.c) or these. R, G, B:
+ *   base  oklch(0.66 0.170 148) #30AD51   oklch(0.64 0.190 28) #E95145   oklch(0.88 0.170 104) #EBDC3A   oklch(0.74 0.150 350) #F080B8
+ *   mid   the same hues at 0.74 x lightness, 0.72 x chroma (the old mids' ratio): 0.488 0.122, 0.474 0.137, 0.651 0.122, 0.548 0.108
+ *   dim   the same hues at 0.46 x lightness, 0.42 x chroma (the old dims'): oklch(0.304 0.071 148), (0.294 0.080 28), (0.405 0.071 104),
+ *         (0.340 0.063 350)
+ *   deep  dim x 0.65 (the visualiser's SLOOP sail bands) */
+#define TRK_C0 48, 173, 81
+#define TRK_C1 233, 81, 69
+#define TRK_C2 235, 220, 58
+#define TRK_C3 240, 128, 184
+#define TRK_M0 32, 114, 53
+#define TRK_M1 154, 53, 45
+#define TRK_M2 156, 147, 41
+#define TRK_M3 159, 85, 122
+#define TRK_D0 15, 56, 25
+#define TRK_D1 77, 25, 20
+#define TRK_D2 79, 75, 22
+#define TRK_D3 80, 42, 61
+#define TRK_X0 10, 36, 16
+#define TRK_X1 50, 16, 13
+#define TRK_X2 51, 49, 14
+#define TRK_X3 52, 27, 40
+#define RGB3(...) RGB(__VA_ARGS__)
+
 #define NOTE_Q 0x80u                                    /* the quarter-tone flag of a note byte */
 #define CENTS_MAX 100                                   /* the total offset on a note: +-100 cents */
 
@@ -153,8 +178,9 @@ static void cents_str(char *b, int32_t c)
     b[i] = 0;
 }
 
-/* the SCL layer's subtitle: "Ed arab sikah trad" (the title says "key"; lower case; 176 px is all there is) */
-static void scl_sub(char *sub, uint32_t n, uint32_t root24, uint32_t scale)
+/* the SEL layer's subtitle: "Ed arab sikah trad" (the title says "key"; lower case; 176 px is all there is); a scale whose forms differ
+ * gets an arrow after its code: up or down as the last key of the selected track went (desc) */
+static void scl_sub(char *sub, uint32_t n, uint32_t root24, uint32_t scale, uint32_t desc)
 {
     const scale_def_t *sc = &SCALES[scale < NSCALES ? scale : NSCALES - 1u];
     const char *src[7];
@@ -164,8 +190,8 @@ static void scl_sub(char *sub, uint32_t n, uint32_t root24, uint32_t scale)
     src[2] = N_SET[sc->set];
     src[3] = " ";
     src[4] = sc->code;
-    src[5] = song.g[G_INTON] ? " trad" : " equal";
-    src[6] = "";
+    src[5] = sc->asc == sc->desc ? "" : desc ? "\x04" : "\x03";   /* the arrow (gfx.c codes 3, 4): a scale with two forms, the direction last played */
+    src[6] = song.g[G_INTON] ? " trad" : " equal";
     for (i = 0; i < 7u; i++)
         for (j = 0; src[i][j] && k + 1u < n; j++) {
             char c = src[i][j];
@@ -192,6 +218,9 @@ static void scl_home(char *d, uint32_t n, uint32_t scale)
 /* ------------------------------------------------------- microtonal key input (tasks 3.1 .. 3.7) --- */
 #define P24_SILENT 255u                                 /* = KB_SILENT (seq.c) */
 static uint8_t kb_last_key[NTRK];                       /* per track: the last key pressed (D5: direction) */
+static uint32_t kb_last_ms[NTRK];                       /* when that key was pressed (fm1_ms): after 1 s the next key counts as ascending */
+static uint8_t kb_walk_desc[NTRK];                      /* the direction of the last key pressed on each track (the SEL arrow) */
+#define KB_DIR_PAUSE_MS 1000u
 static uint8_t kb_desc_now;                             /* the direction kb_map last used (chord_notes follows it) */
 
 static inline uint32_t scale_dir_mask(const scale_def_t *sc, uint32_t desc) { return desc ? sc->desc : sc->asc; }
@@ -202,6 +231,31 @@ static int32_t scale_floor(uint32_t mask, int32_t root, int32_t p)
     while (g-- > 0 && !((mask >> (uint32_t)((((p - root) % 24) + 24) % 24)) & 1u))
         p--;
     return p;
+}
+/* SNAP: the degree of mask (a form, rooted at slot root) for the key whose quarter-tone window is [c-1, c+1]: the exact slot c if it is
+ * a degree, else a degree in the window (both: the one in the direction of travel), else going up the next degree above the window,
+ * going down the next below. A WEST scale has no odd slot: ascending a key between two degrees plays the one above, descending the
+ * one below (descending is what SNAP always did) */
+static int32_t scale_snap(uint32_t mask, int32_t root, int32_t c, uint32_t up)
+{
+    int32_t d;
+#define SB(P) ((mask >> (uint32_t)((((P) - root) % 24 + 24) % 24)) & 1u)
+    if (SB(c))
+        return c;
+    if (SB(c - 1) && SB(c + 1))
+        return up ? c + 1 : c - 1;
+    if (SB(c + 1))
+        return c + 1;
+    if (SB(c - 1))
+        return c - 1;
+    for (d = 2; d < 48; d++) {
+        if (up && SB(c + d))
+            return c + d;
+        if (!up && SB(c - d))
+            return c - d;
+    }
+#undef SB
+    return c;
 }
 /* OCT- / OCT+ held on a synth key: -1 / +1 quarter tone (both: 0); block = the layer buttons that use OCT otherwise */
 static inline int32_t oct_mod(uint32_t buttons, uint32_t dn, uint32_t up, uint32_t block)
@@ -224,12 +278,12 @@ static uint32_t kb_quant(const track_t *t, uint32_t k, uint32_t desc, int32_t mo
     int32_t n = 53 + (int32_t)k, root = t->p[P_ROOT], p;
     if (t->p[P_QUANT] == 1 && !t->p[P_CHORD]) {
         n += 12 * xoct + t->p[P_TRANS];
-        p = scale_floor(scale_dir_mask(&SCALES[scale_index(t)], desc), root, 2 * n + 1 + mod);
+        p = scale_snap(scale_dir_mask(&SCALES[scale_index(t)], desc), root, 2 * n + mod, !desc);
     } else if (t->p[P_QUANT] == 2 || t->p[P_CHORD]) {
         const scale_def_t *sc = t->p[P_CHORD] && !t->p[P_SCALE] ? &SCALES[2] : &SCALES[scale_index(t)];
         /* the layout of the white keys comes from the form with more degrees, so it never shifts with the
          * direction (Yaman 6 up / 7 down, Asavari 5 / 7); a degree missing in the direction played is replaced
-         * by the nearest degree of that direction, the lower one on a tie */
+         * by the next degree of that direction's form: above it going up, below it going down */
         uint32_t dmask = scale_dir_mask(sc, desc), mask = pop24(sc->desc) > pop24(sc->asc) ? sc->desc :
                          pop24(sc->asc) > pop24(sc->desc) ? sc->asc : dmask, i;
         int32_t count = 0, degree = DEGREE[n % 12], oct;
@@ -250,15 +304,12 @@ static uint32_t kb_quant(const track_t *t, uint32_t k, uint32_t desc, int32_t mo
                     break;
                 degree--;
             }
-        if (!((dmask >> i) & 1u)) {                     /* not in this direction's form: its nearest degree */
+        if (!((dmask >> i) & 1u)) {                     /* not in this direction's form: the next degree of it, in the direction played */
             int32_t d;
             for (d = 1; d < 24; d++) {
-                if ((dmask >> (uint32_t)(((int32_t)i - d + 24) % 24)) & 1u) {
-                    i = (uint32_t)((int32_t)i - d);     /* (may go below 0: the octave below) */
-                    break;
-                }
-                if ((dmask >> (uint32_t)(((int32_t)i + d) % 24)) & 1u) {
-                    i = (uint32_t)((int32_t)i + d);
+                int32_t j = desc ? (int32_t)i - d : (int32_t)i + d;
+                if ((dmask >> (uint32_t)((j + 48) % 24)) & 1u) {
+                    i = (uint32_t)j;                    /* (may go below 0 or past 23: the octave below / above) */
                     break;
                 }
             }
