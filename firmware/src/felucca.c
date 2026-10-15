@@ -17,6 +17,7 @@
 #include "lcd.c"
 #include "gfx.c"
 #include "core.h"
+#include "pitch24.h"       /* maqam: 24-tone pitch core (quarter-tone flag, cents) */
 #include "engines.c"
 #include "drums.c"
 #include "params.c"

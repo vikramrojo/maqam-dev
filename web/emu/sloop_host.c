@@ -33,6 +33,7 @@
 #endif
 #include "../../firmware/src/gfx.c"
 #include "../../firmware/src/core.h"
+#include "../../firmware/src/pitch24.h"       /* maqam: 24-tone pitch core */
 #include "../../firmware/src/engines.c"
 #include "../../firmware/src/drums.c"
 #include "../../firmware/src/params.c"

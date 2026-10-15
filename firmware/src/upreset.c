@@ -82,9 +82,18 @@ static void up_name(uint32_t k, char *b)       /* upper case, 0-terminated: b ho
     b[i] = 0;
 }
 
+/* the editor's wire is 7 bits a byte: the quarter-tone flags of the 16 pattern notes travel as a 16-bit mask,
+ * 3 bytes after the pattern in UP_GET / UP_PUT (an older editor ignores them, an older one sends none) */
+static uint32_t up_qmask(const uint8_t *note)
+{
+    uint32_t i, m = 0;
+    for (i = 0; i < 16u; i++)
+        m |= (uint32_t)(note[i] >> 7) << i;
+    return m;
+}
 static void up_pat_norm(uint8_t *note, uint8_t *flags)   /* tie: no note; rest: no flags */
 {
-    *note &= 127u;
+    /* maqam: a note keeps its quarter-tone flag (bit 7) in the record: UP_VER stays 1, the byte was always 8 bits */
     if (*flags & 4u) {
         *note = 0;
         *flags = 4;
@@ -136,9 +145,15 @@ static int up_parse(const uint8_t *a, uint32_t na, up_rec_t *r, uint32_t *slot)
     for (i = 0; i < P_COUNT; i++, k += 2u)
         r->p[i] = (int16_t)((int32_t)((a[k] & 127u) | (a[k + 1] & 127u) << 7) - 8192);
     for (i = 0; i < 16u; i++, k += 2u) {
-        r->note[i] = a[k];
+        r->note[i] = a[k] & 127u;                /* maqam: the flag comes with the mask below */
         r->flags[i] = a[k + 1];
         up_pat_norm(&r->note[i], &r->flags[i]);
+    }
+    if (na >= k + 3u) {                          /* maqam: the quarter-tone mask (a newer editor) */
+        uint32_t m = (uint32_t)(a[k] & 127u) | (uint32_t)(a[k + 1] & 127u) << 7 | (uint32_t)(a[k + 2] & 3u) << 14;
+        for (i = 0; i < 16u; i++)
+            if ((m >> i) & 1u && r->note[i])
+                r->note[i] |= 0x80u;
     }
     return 0;
 }

@@ -183,7 +183,7 @@ static void ed_dstep_from_old(dstep_t *d, const uint8_t *a)
     for (i = 0; i < n; i++)
         dstep_set(d, lane_of_note(a[1 + i] & 0x7Fu), (a[6] & SF_ACCENT) ? LV_HARD : LV_NORM, 0);
 }
-/* a step's bytes, as STEP_GET sends them (v5: + level, ratchet) */
+/* a step's bytes, as STEP_GET sends them (v5: + level, ratchet; v7: + quarter-tone bits, bend) */
 static void ed_step_out(const track_t *t, uint32_t i)
 {
     uint32_t k;
@@ -200,22 +200,18 @@ static void ed_step_out(const track_t *t, uint32_t i)
         ed_b(0);                                         /* v5: lvl, hi, rat (DRUM_STEP has the lanes' own) */
         ed_b(0);
         ed_b(0);
+        ed_b(0);                                         /* maqam v7: no quarter tones, no bend (cents + 64) */
+        ed_b(64);
         return;
     }
-    {
-        const step_t *st = &t->step[i];
-        ed_b(st->n);
-        for (k = 0; k < 4u; k++)
-            ed_b(st->note[k]);
-        ed_b(st->time);
-        ed_b(st->flags);
-        ed_b(st->vel);
-        ed_b(st->lvl);                                   /* v5 (7 bits each: 4 x 2-bit fields, the top 1 below) */
-        ed_b(st->lvl >> 7 | (st->rat >> 7) << 1);
-        ed_b(st->rat);
+    {                                                    /* maqam: 13 bytes, v7 adds the quarter-tone bits and the bend (pitch24.h) */
+        uint8_t w[STEP_WIRE];
+        uint32_t n = step_wire_out(&t->step[i], w);
+        for (k = 0; k < n; k++)
+            ed_b(w[k]);
     }
 }
-/* a step written: n, 4 notes, time, flags, vel [, lvl, hi, rat] */
+/* a step written: n, 4 notes, time, flags, vel [, lvl, hi, rat [, qbits, cents + 64]] */
 static void ed_step_in(track_t *t, uint32_t i, const uint8_t *a, uint32_t na)
 {
     uint32_t k;
@@ -223,21 +219,7 @@ static void ed_step_in(track_t *t, uint32_t i, const uint8_t *a, uint32_t na)
         ed_dstep_from_old(&t->dstep[i], a);
         return;
     }
-    {
-        step_t *st = &t->step[i];
-        st->n = (uint8_t)(a[0] > 4u ? 4u : a[0]);
-        for (k = 0; k < 4u; k++)
-            st->note[k] = a[1 + k] & 0x7Fu;
-        st->time = (uint8_t)(a[5] > ST_REST ? ST_REST : a[5]);
-        st->flags = a[6] & (SF_ACCENT | SF_SLIDE);
-        st->vel = a[7] & 0x7Fu;
-        if (na >= 11u) {
-            st->lvl = (uint8_t)((a[8] & 0x7Fu) | (a[9] & 1u) << 7);
-            st->rat = (uint8_t)((a[10] & 0x7Fu) | ((a[9] >> 1) & 1u) << 7);
-        } else {
-            st->lvl = st->rat = 0;
-        }
-    }
+    step_wire_in(&t->step[i], a, na < STEP_WIRE ? na : STEP_WIRE);   /* maqam: pitch24.h (v5 bytes, v7 quarter tones + bend) */
 }
 static void ed_shadow(void)                              /* the editor is in sync */
 {
@@ -567,7 +549,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         for (i = 0; i < NENGINES; i++)
             ed_str(ENGINES[i]->name, 8);
         ed_b(NTRK);                                       /* v3 */
-        ed_b(6);                                          /* v6: the protocol version (backup) */
+        ed_b(7);                                          /* v7: the protocol version (quarter-tone steps; v6: backup) */
         break;
     case ED_GET:
     case ED_SET:
@@ -763,6 +745,12 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         for (i = 0; i < 16u; i++) {
             ed_b(u ? r->note[i] : 0u);
             ed_b(u ? r->flags[i] : 0u);
+        }
+        {                                                  /* maqam: the quarter-tone flags of the notes: a 16-bit mask, 3 bytes */
+            uint32_t m = u ? up_qmask(r->note) : 0u;
+            ed_b(m);
+            ed_b(m >> 7);
+            ed_b(m >> 14);
         }
         break;
     }

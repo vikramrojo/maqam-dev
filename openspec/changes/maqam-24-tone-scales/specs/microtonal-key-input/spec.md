@@ -69,7 +69,7 @@ In chord mode, chords SHALL stack degrees of the current 24-tone scale. A POWER 
 - **THEN** C, E-half-flat and G sound
 
 ### Requirement: Key lights show quarter-tone scales
-In the SCL layer, a key SHALL be lit as in the scale when its semitone, or the quarter tone above it, is a degree of the scale.
+In the SCL layer, a key SHALL be lit as in the scale when its semitone, or a quarter tone either side of it, is a degree of the scale.
 
 #### Scenario: E lit in Rast
 - **WHEN** SCL is held with ARAB Rast on C

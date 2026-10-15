@@ -8,6 +8,13 @@ SLOOP is free and open source (GPL-3.0), based on [Felucca](https://github.com/h
 
 > **Status:** 2.3, running on the FM-1. Still a beta: install at your own risk, and please report what you find (GitHub issues).
 
+### New: microtonal scales
+
+- **52 scales in four sets** — WEST (the 16 you know), TURK makams, ARAB maqamat, INDIA ragas — on a **24-note grid** with quarter tones, ascending and descending forms, and an **EQUAL / TRADITIONAL** tuning switch. Hold **SCL**: PRESETS picks the set, KNOB 2 the scale, ALGORITHM the tuning; **OCT− / OCT+ + a key** plays a half-flat / half-sharp. The root has 24 values. See [Scales](#scales-west-turkish-arabic-indian).
+- **OCT− / OCT+ change the octave when released** (not when pressed), so they can also be held as a quarter-tone modifier.
+- **A bend on every step** (STEP 2 → CENT, −63..+63 cents) and steps that hold quarter tones; note names show a half-flat (`E` with a reversed flat) and a half-sharp, and the web editor protocol is version 7.
+- **Projects saved before still load** (SLOOP 2.0 to 2.3): the key is kept, the tuning is TRADITIONAL, every bend is 0 and the music plays as before. The project format is now **FUN5** (steps are 11 bytes). Older SLOOP firmware cannot read a FUN5 project, so **make a backup with the web editor before updating** (Projects tab → Save a backup); a SLOOP 2.3 backup restores into this version and converts as it loads.
+
 ### New in 2.3
 
 - **A MIDI keyboard on the MIDI IN jack.** The FM-1's 3.5 mm TRS MIDI input works: channels 1–3 play the synth tracks, 10 the drums, 4–16 the selected track. The input reads its buffer by content, so no note is left hanging (fix from Felucca [Salt], by ChanceTheMaker and keremimo). See [MIDI keyboards](#midi-keyboards).
@@ -135,7 +142,7 @@ Other controls:
 | **ALGORITHM** | select the track (on every page) |
 | **PRESETS** | the selected track's sound, or the drum kit |
 | **SELECT** | tempo (always, even inside a layer) |
-| **OCT− / OCT+** | synth tracks: octave (both: back to 0) · drum track, held: ghost / hard hits |
+| **OCT− / OCT+** | synth tracks: octave on release (both: back to 0); held with a key: a quarter tone down / up · drum track, held: ghost / hard hits |
 | **HOME** | the TRACKS screen · hold: menu (colour, low cut, zoom, lights, keys, notes, USB audio, calibration, about) · tapped while a layer is held: lock it open |
 | **ENV / LFO** | their pages |
 
@@ -207,17 +214,40 @@ The 16 white keys are the 16 steps of the page; the lit ones play. The first fou
 
 - **An empty step:** press its key — it is set at once. Drums: with the sound shown (KNOB 1 picks it, or the last pad you hit); synths: with the note or chord you played last.
 - **A set step:** press and let go — it is cleared. Hold it and turn a knob instead — it is edited, and kept: **KNOB 1** sound (drums) / note (synths), **KNOB 2 LEVEL** (ghost, soft, norm, hard), **KNOB 3 RATCHET** (x1–x4). Hold several step keys to edit them together.
+- **Quarter tones and bends in a step (synth tracks):** on the **STEP** page, **KNOB 2 NOTE** moves the step by semitones and keeps its quarter tone (E half-flat + 2 semitones = F# half-flat); hold **OCT− / OCT+** while turning it to move by quarter tones (E, OCT− and one detent = E half-flat; the octave is not changed by that). Tap **SEQ** again for **STEP 2**: **KNOB 2 CENT** bends the whole step from −63 to +63 cents, one a detent (its tile shows `−5c`; chords bend every note). The bend adds to the scale's own tuning (TRADITIONAL), up to ±100 cents in all.
 - **No step held:** KNOB 1 the sound / note to set · KNOB 2 **DIV** (1/4 … 1/32, triplets) · KNOB 3 **SWING** of the track · KNOB 4 **LENGTH** (1–64 steps; each track loops on its own length, polymeters stay in phase).
 
 ### SCL — key and chords
 
 - **Any key** sets the **key of the song**: the root of all three synth tracks (*KEY D*).
 - **KNOB 1 CHORD** (selected synth track): OFF, TRIAD, 7TH, 9TH (1-3-7-9, the lo-fi / R&B voicing), SUS4, POWER. With a chord on, **the white keys walk the scale from C4** — C4 is the chord of the key's I, D4 the II, E4 the III… — and one finger plays the whole chord, recorded as a chord. With SCALE on CHR, the chords come from the minor scale.
-- **KNOB 2 SCALE** for all synth tracks (16 scales: major, minor, dorian, mixolydian, pentatonics, harmonic, blues…).
+- **KNOB 2 SCALE** for all synth tracks, within the current set (**PRESETS** picks the set: WEST, TURK, ARAB, INDIA; 52 scales in all, see [Scales](#scales-west-turkish-arabic-indian)). **ALGORITHM** sets EQUAL / TRADITIONAL tuning.
 - **KNOB 3 KEYS**: OFF (all keys chromatic), SNAP (every key rounded to the scale), WHITE (the white keys walk the scale, the black keys are silent).
 - **KNOB 4 TRANSPOSE** the selected track, ±24 semitones.
 
 Changing a sound (PRESETS, a user preset) never changes the key, the chord mode, the pattern or the mix of its track.
+
+### Scales: West, Turkish, Arabic, Indian
+
+*A visual guide to these screens, with pictures: [SCALES.md](SCALES.md).*
+
+SLOOP plays **quarter tones**. It has **52 scales in four sets**, a **24-note grid** (every semitone and the quarter tone between), and keys that reach the quarter tones. It is an introduction to microtonal playing, not an archive: any scale plays from any root.
+
+| Set | Scales (code, name) |
+| --- | --- |
+| **WEST** (0–15) | `CHR` Chromat, `MAJ` Major, `MIN` Minor, `DOR` Dorian, `MIX` Mixolyd, `PEN` Penta, `MPEN` MinPenta, `HARM` HarmMin, `PHRY` Phrygian, `LYD` Lydian, `LOC` Locrian, `MEL` MelMin, `BLUES` Blues, `WHOLE` Whole, `DIMHW` DimHW, `DIMWH` DimWH |
+| **TURK** (16–27) | `T.RST` Rast, `USSAK` Ussak, `HUSEY` Huseyni, `KURDI` Kurdi, `NIHAV` Nihavend, `HICAZ` Hicaz, `HCKAR` Hicazkar, `SUZIN` Suzinak, `KARCI` Karcigar, `T.SBA` Saba, `SEGAH` Segah, `HUZZM` Huzzam |
+| **ARAB** (28–39) | `RAST` Rast, `BAYAT` Bayati, `SABA` Saba, `SIKAH` Sikah, `HIJAZ` Hijaz, `NAHAW` Nahawand, `KURD` Kurd, `AJAM` Ajam, `NIKRZ` Nikriz, `HJKAR` Hijazkar, `SUZNK` Suznak, `HUZAM` Huzam |
+| **INDIA** (40–51) | `YAMAN` Yaman, `BILAW` Bilawal, `KHMAJ` Khamaj, `KAFI` Kafi, `ASAVR` Asavari, `BHRVI` Bhairavi, `BHAIR` Bhairav, `TODI` Todi, `PURVI` Purvi, `MARWA` Marwa, `BHUPL` Bhupali, `MALKS` Malkauns |
+
+- **Choose.** Hold **SCL**: **PRESETS** cycles the *set* (WEST → TURK → ARAB → INDIA) and picks its first scale; **KNOB 2** steps through the scales of the current set and wraps. The bar under KNOB 2 shows the place within the set. The title bar shows *root, set, scale, intonation* (for example `Ed arab sikah trad`).
+- **Any scale on any root.** Choosing a scale never moves the key of the song. A non-WEST scale shows its traditional tonic under KNOB 2 (`home Bb` for ARAB Ajam), as a hint only: play it from there, or from anywhere else; the intervals and the tuning travel with the root. The root has 24 values: hold **OCT−** (a quarter tone down) or **OCT+** (up) while you press the key in SCL to choose a half-flat or half-sharp root (OCT− + E = E half-flat, written `Ed`).
+- **Ascending and descending forms.** Some scales differ going down (ARAB Rast has B half-flat up and B-flat down; INDIA Yaman has no Pa going up). On a synth track a key lower than the previous key uses the descending form; any other key the ascending one. The note you hear is the note that is recorded.
+- **EQUAL / TRADITIONAL.** Each scale also carries the small offsets of its tradition (TURK in Pythagorean ratios, ARAB after al-Ṣabbāgh, INDIA in just intonation), up to ±25 cents. Hold **SCL** and turn **ALGORITHM**: right = TRADITIONAL (the default), left = EQUAL (the plain 24-note grid); the title bar says `trad` or `equal`. Play the same note after each switch to hear the difference: the third of TURK Rast on C is 385 cents in TRADITIONAL and 400 in EQUAL (the tuning is applied when a note starts). WEST scales are the same in both. The setting is saved with the project; projects from before load as TRADITIONAL.
+- **Keys.** With **KEYS = SNAP**, each key covers its own semitone and the quarter tone above it and plays the highest degree at or below that (in ARAB Rast on C both the E and the E-flat key play E half-flat). With **WHITE**, the white keys walk the degrees of the scale from C4 = the root. Chords stack degrees of the scale (TRIAD in ARAB Rast on C: C, E half-flat, G); POWER is root, fifth, octave. In SCL the keys light when their semitone or a quarter tone next to it is in the scale.
+- **Quarter-tone modifier.** On a synth track, hold **OCT−** / **OCT+** while you press a key: it plays a quarter tone lower / higher (E half-flat in CHR; with SNAP the shift comes before the rounding). Because of this, **OCT−** / **OCT+** now change the octave **when released**, and only if no key was pressed while they were held; both together still reset it to 0. On the drum track they keep their ghost / hard meaning.
+- MIDI out sends the semitone of a quarter-tone note (E half-flat goes out as D#); MIDI in stays plain 12-tone.
+- New scales are a text-file edit: see [`scales/README.md`](scales/README.md).
 
 ### GLO — mix
 
@@ -340,7 +370,7 @@ Open it from the installer page, or with **`OPEN-EDITOR.bat`** (`http://localhos
 - **Library**, **Samples** (with CHOP), **Projects**, **Settings** (GLOBAL, **MASTER**: DUST, DUCK, FILT, ROLL; DRUMS).
 - **Backup** (Projects tab): **Save a backup** writes everything on the FM-1 to one file (SLOOP-backup-DATE.json): the music you are working on, the projects 1–4 (the song sections A–D), the 32 user presets, the samples USR1–3 and the settings (colours, calibration, the song order, the lights, SYNC). **Restore from a file** puts it all back — what is on the FM-1 is replaced. A damaged file is refused before anything is written, every object is checked as a load checks it, and each one is written as a save writes it (a cut-off restore never leaves half an object). Stop the song (PLAY) before restoring.
 
-The protocol is documented in [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md) (v6).
+The protocol is documented in [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md) (v7).
 
 ## The emulator: try it in your browser
 

@@ -9,6 +9,10 @@ CLANG="${CLANG:-clang}"
 WASM_LD="${WASM_LD:-$(command -v wasm-ld || ls /opt/homebrew/bin/wasm-ld /usr/local/bin/wasm-ld 2>/dev/null | head -1)}"
 [ -n "$WASM_LD" ] || { echo "wasm-ld not found (brew install lld)"; exit 1; }
 [ -f build/gen/felucca_tables.h ] || { echo "build/gen missing: run ./build.sh first"; exit 1; }
+# maqam: the scale table (scales/*.txt); regenerated when a scale file or the generator is newer
+if [ ! -f build/gen/scales.h ] || [ -n "$(find scales tools/gen_scales.py -newer build/gen/scales.h 2>/dev/null | head -1)" ]; then
+    python3 tools/gen_scales.py build/gen/scales.h
+fi
 mkdir -p build/emu
 OUT=build/emu/sloop.wasm
 "$CLANG" --target=wasm32 -O2 -ffp-contract=off -ffreestanding -fno-builtin -nostdlib -w \

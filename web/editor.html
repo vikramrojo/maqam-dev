@@ -382,6 +382,13 @@ function stepExt(r, a, o) {
     o.lvl = lo | ((hi & 1) << 7);
     o.rat = rt | (((hi >> 1) & 1) << 7);
   }
+  /* v7: qbits (bit k = note k is +50 c: stored as note | NOTE_Q) and cents + 64 (the step's bend) */
+  if (r.i + 2 <= a.length) {
+    const q = r.b(), c = r.b();
+    for (let k = 0; k < 4; k++) if ((q >> k) & 1) o.notes[k] |= NOTE_Q;
+    o.cents = Math.max(-63, Math.min(63, c - 64));
+    o.v7 = true;
+  }
   return o;
 }
 
@@ -449,6 +456,10 @@ const parse = {
     const o = { slot: r.b(), used: r.b(), engine: r.b(), name: r.s(), p: [], pattern: [] };
     for (let i = 0; i < info.pcount; i++) o.p.push(r.v());
     for (let i = 0; i < UP.PAT; i++) o.pattern.push([r.b(), r.b()]);
+    if (r.i + 3 <= a.length) {                       /* v7: the 16-bit quarter-tone mask, 7 bits a byte, LSB first */
+      const m = r.b() | (r.b() << 7) | (r.b() << 14);
+      for (let i = 0; i < UP.PAT; i++) if ((m >> i) & 1) o.pattern[i][0] |= NOTE_Q;
+    }
     return o;
   },
   [CMD.UP_PUT](a) { return parse[CMD.SMP_BEGIN](a); },
@@ -522,8 +533,11 @@ const req = {
   stepSet: (i, st) => {
     const n = Math.max(0, Math.min(4, st.n | 0));
     const notes = [0, 1, 2, 3].map((k) => (st.notes[k] | 0) & 0x7F);
-    const ext = st.lvl == null && st.rat == null ? []   /* v5: level / ratchet kept (older firmware ignores them) */
+    let ext = st.lvl == null && st.rat == null && !st.v7 ? []   /* v5: level / ratchet kept (older firmware ignores them) */
       : [(st.lvl | 0) & 0x7F, (((st.lvl | 0) >> 7) & 1) | ((((st.rat | 0) >> 7) & 1) << 1), (st.rat | 0) & 0x7F];
+    /* v7 (st.v7 set when INFO proto >= 7): qbits from bit 7 of each note, cents + 64 (-63..+63) */
+    if (st.v7) ext = ext.concat([[0, 1, 2, 3].reduce((q, k) => q | (((st.notes[k] | 0) >> 7 & 1) << k), 0),
+      64 + Math.max(-63, Math.min(63, st.cents | 0))]);
     return [CMD.STEP_SET, [i, n, ...notes, Math.max(0, Math.min(2, st.time | 0)), st.flags & 3, (st.vel | 0) & 0x7F, ...ext]];
   },
   /* v5: get (d == null) or set the drum track's step i: {on: 16 bits, lvl[16], rat[16]} */
@@ -546,7 +560,8 @@ const req = {
   upGet: (s) => [CMD.UP_GET, [s & 0x7F]],
   /* patch: {engine, name, p: P_COUNT values, pattern: 16 x [note, flags]} */
   upPut: (s, pt) => [CMD.UP_PUT, [s & 0x7F, pt.engine & 0x7F, ...strEnc(upName(pt.name)), ...pt.p.flatMap((v) => v14enc(v ?? 0)),
-    ...Array.from({ length: UP.PAT }, (_, i) => { const x = (pt.pattern || [])[i] || [0, 0]; return [x[0] & 0x7F, x[1] & 7]; }).flat()]],
+    ...Array.from({ length: UP.PAT }, (_, i) => { const x = (pt.pattern || [])[i] || [0, 0]; return [x[0] & 0x7F, x[1] & 7]; }).flat(),
+    ...upQmask(pt.pattern)]],
   upStore: (s, name) => [CMD.UP_STORE, [s & 0x7F, ...strEnc(name ? upName(name) : "")]],   /* "": the device names it ("ANALOG 07") */
   upLoad: (s) => [CMD.UP_LOAD, [s & 0x7F]],
   upErase: (s) => [CMD.UP_ERASE, [s & 0x7F]],
@@ -668,7 +683,20 @@ class Link {
 
 /* ------------------------------------------------------------- formatting --- */
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-const noteName = (n) => NOTE_NAMES[n % 12] + (Math.floor(n / 12) - 1);   /* 60 = C4 */
+/* the 24 quarter-tone names from C, as the firmware's N_NOTE24 (pitch24.h): 'd' half-flat, '+' half-sharp */
+const NOTE_NAMES24 = ["C", "C+", "C#", "Dd", "D", "D+", "D#", "Ed", "E", "Fd", "F", "F+",
+  "F#", "Gd", "G", "G+", "G#", "Ad", "A", "A+", "A#", "Bd", "B", "Cd"];
+/* A note value is the firmware's note byte: semitone (MIDI number, 0..127) | 0x80 when the note is a quarter tone
+   (+50 c) above it; so E-half-flat 4 = D#4 | 0x80 = 0xBF. Plain 12-tone notes are unchanged. The SysEx step
+   messages carry the flag as a separate field (protocol, task 7.1); until then notes there are 0..127. */
+const NOTE_Q = 0x80;
+const noteSemi = (n) => n & 127, noteQ = (n) => (n >> 7) & 1;
+/* 60 = C4; a quarter tone prints as in NOTE_NAMES24 (Ed4, F+3, B4|Q = Cd5: the half-flat of the next C) */
+const noteName = (n) => {
+  const s = n & 127, i = 2 * (s % 12) + ((n >> 7) & 1);
+  const oct = Math.floor(s / 12) - 1 + (i === 23 ? 1 : 0);
+  return NOTE_NAMES24[i] + oct;
+};
 /* GM drum notes (35..81) by short names, for the drum track's steps */
 const GM_DRUM = { 35: "KICK2", 36: "KICK", 37: "RIM", 38: "SNARE", 39: "CLAP", 40: "SNARE2", 41: "LTOM2", 42: "CHH", 43: "LTOM",
   44: "PHH", 45: "MTOM2", 46: "OHH", 47: "MTOM", 48: "HTOM2", 49: "CRASH", 50: "HTOM", 51: "RIDE", 52: "CHINA", 53: "BELL",
@@ -677,16 +705,19 @@ const GM_DRUM = { 35: "KICK2", 36: "KICK", 37: "RIM", 38: "SNARE", 39: "CLAP", 4
   72: "LWHIS", 73: "SGUIRO", 74: "LGUIRO", 75: "CLAVES", 76: "HWOOD", 77: "LWOOD", 78: "MCUICA", 79: "OCUICA", 80: "MTRI", 81: "OTRI" };
 const GM_DRUM_BY_NAME = Object.fromEntries(Object.entries(GM_DRUM).map(([n, s]) => [s, +n]));
 const drumName = (n) => GM_DRUM[n] || String(n);
-/* a note token: a number, a note name (C4, F#3, Bb2) or a GM drum name (KICK, CHH) */
+/* a note token: a number, a note name (C4, F#3, Bb2), a quarter-tone name (Ed4 half-flat, F+3 half-sharp; one
+   accidental only: C#+ and Bbd are rejected) or a GM drum name (KICK, CHH). Returns the note value (see NOTE_Q) */
 function parseNote(tok) {
   const dn = GM_DRUM_BY_NAME[tok.toUpperCase()];
   if (dn != null) return dn;
   if (/^\d+$/.test(tok)) { const n = +tok; return n <= 127 ? n : null; }
-  const m = /^([A-Ga-g])([#b]?)(-?\d)$/.exec(tok);
+  const m = /^([A-Ga-g])([#bd+]?)(-?\d)$/.exec(tok);
   if (!m) return null;
   const base = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[m[1].toUpperCase()];
-  const n = base + (m[2] === "#" ? 1 : m[2] === "b" ? -1 : 0) + (parseInt(m[3], 10) + 1) * 12;
-  return n >= 0 && n <= 127 ? n : null;
+  const acc = { "": 0, "#": 2, b: -2, d: -1, "+": 1 }[m[2]];   /* in quarter tones */
+  const p24 = 2 * (base + (parseInt(m[3], 10) + 1) * 12) + acc;
+  const s = Math.floor(p24 / 2);
+  return s >= 0 && s <= 127 ? s | ((p24 & 1) << 7) : null;
 }
 /* "C4 E4 G4" -> [60, 64, 67]; null on a bad token or more than 4 notes */
 function parseNotes(s) {
@@ -716,7 +747,7 @@ function fmtValue(d, v) {
     case F.SEMI: return [sign(v), "st"];
     case F.ENUM: return [d.names[v - d.min] ?? String(v), d.unit || ""];
     case F.BPM: return [String(v), "BPM"];
-    case F.NOTE: return [NOTE_NAMES[((v % 12) + 12) % 12], ""];
+    case F.NOTE: return [d.max > 11 ? NOTE_NAMES24[((v % 24) + 24) % 24] : NOTE_NAMES[((v % 12) + 12) % 12], ""];
     case F.ONOFF: return [v ? "ON" : "OFF", ""];
     case F.STEPS: return [String(v), "STEP"];
     default: return [String(v), d.unit || ""];
@@ -1106,7 +1137,12 @@ function remapParams(p, fromKeys, toKeys) {
 }
 
 /* one pattern step as the firmware keeps it (up_pat_norm): a tie has no note, a rest no flags */
-const patNorm = (n, f) => (f & 4 ? [0, 4] : [n & 0x7F, n ? f & 3 : 0]);
+const patNorm = (n, f) => (f & 4 ? [0, 4] : [n & 0xFF, n ? f & 3 : 0]);   /* a note keeps its quarter-tone bit (NOTE_Q) */
+/* v7: the pattern notes' quarter-tone mask, 3 bytes; nothing when no note has one (older firmware gets the old message) */
+const upQmask = (pat) => {
+  const m = Array.from({ length: UP.PAT }, (_, i) => ((((pat || [])[i] || [0])[0] >> 7) & 1) << i).reduce((a, b) => a | b, 0);
+  return m ? [m & 0x7F, (m >> 7) & 0x7F, (m >> 14) & 0x7F] : [];
+};
 /* sequencer steps (STEP_GET objects) -> 16-step pattern, as the firmware's UP_STORE does (up_pat_from):
    the first note of a NOTE step, flag 4 for a TIE step */
 function patternFromSteps(steps) {
@@ -1120,7 +1156,7 @@ function patternFromSteps(steps) {
 function stepsFromPattern(pat) {
   return Array.from({ length: UP.PAT }, (_, i) => {
     const [n, f] = (pat && pat[i]) || [0, 0];
-    return { n: n ? 1 : 0, notes: [n & 0x7F, 0, 0, 0], time: f & 4 ? 1 : n ? 0 : 2, flags: n ? f & 3 : 0, vel: n ? 96 : 0 };
+    return { n: n ? 1 : 0, notes: [n & 0xFF, 0, 0, 0], time: f & 4 ? 1 : n ? 0 : 2, flags: n ? f & 3 : 0, vel: n ? 96 : 0 };
   });
 }
 const patternUsed = (pat) => !!pat && pat.some((x) => x && x[0]);
@@ -1398,7 +1434,7 @@ function makeMockDevice(opt = {}) {
     D("PIT", F.BIPCT, -64, 63, 0), D("FLT", F.BIPCT, -64, 63, 0), D("SHP", F.BIPCT, -64, 63, 0), D("AMP", F.PCT, 0, 127, 0),
     E("MODE", ["OFF", "UP", "DN", "UPDN", "RND", "ORD"], 0), E("RATE", NDIV, 2), D("OCT", F.INT, 1, 4, 1), D("GATE", F.PCT, 1, 127, 64),
     D("SWG", F.SWING, 0, 100, 0), D("PROB", F.PCT, 0, 127, 127), E("HOLD", NONOFF, 0), E("ORD", ["NOTE", "PLAY"], 0),
-    D("ROOT", F.NOTE, 0, 11, 0), E("SCL", ["CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM", "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH"], 0), E("QNT", ["OFF", "SNAP", "WHITE"], 0), D("TRN", F.SEMI, -24, 24, 0),
+    D("ROOT", F.NOTE, 0, 23, 0), E("SCL", ["CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM", "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH", "T.RST", "USSAK", "HUSEY", "KURDI", "NIHAV", "HICAZ", "HCKAR", "SUZIN", "KARCI", "T.SBA", "SEGAH", "HUZZM", "RAST", "BAYAT", "SABA", "SIKAH", "HIJAZ", "NAHAW", "KURD", "AJAM", "NIKRZ", "HJKAR", "SUZNK", "HUZAM", "YAMAN", "BILAW", "KHMAJ", "KAFI", "ASAVR", "BHRVI", "BHAIR", "TODI", "PURVI", "MARWA", "BHUPL", "MALKS"], 0), E("QNT", ["OFF", "SNAP", "WHITE"], 0), D("TRN", F.SEMI, -24, 24, 0),
     D("LEN", F.STEPS, 1, 64, 16), E("DIV", NDIV, 2), D("SWG", F.SWING, 0, 100, 0), D("GATE", F.PCT, 1, 127, 64),
     D("DST", F.PCT, 0, 127, 0), D("CHO", F.PCT, 0, 127, 0), D("DLY", F.PCT, 0, 127, 0), D("REV", F.PCT, 0, 127, 0),
     E("VCE", ["POLY", "MONO", "LEG", "UNI"], 0), D("GLD", F.TIME, 0, 127, 0), D("PAN", F.BIPCT, -64, 63, 0), E("MUTE", NONOFF, 0),
@@ -1417,7 +1453,7 @@ function makeMockDevice(opt = {}) {
     E("CLRSQ", NGO, 0), E("INIT", NGO, 0),
     D("CH", F.INT, 0, 16, 10), D("LVL", F.INT, 0, 127, 100), D("REV", F.INT, 0, 127, 16),
     D("DUST", F.PCT, 0, 127, 0), D("DUCK", F.PCT, 0, 127, 0), D("FILT", F.FILT, -64, 63, 0),
-    E("ROLL", ["1/8", "1/16", "1/32", "32T", "1/64"], 1), E("NEW", NGO, 0),
+    E("ROLL", ["1/8", "1/16", "1/32", "32T", "1/64"], 1), E("NEW", NGO, 0), E("INTON", ["EQUAL", "TRAD"], 1),
   ];
   /* the drum track's P_E0: its kit (drums.c DRUM_KIT_NAMES; 5 = 808, the power-on kit) */
   const KIT = E("KIT", ["ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", "808", "909", "606", "80S", "VINTAGE", "TRAP", "DRILL", "BOOMBAP", "LO-FI", "PHONK", "HOUSE", "D.HOUSE", "TECHNO", "MINIMAL", "ELECTRO", "DISCO", "GARAGE", "JUNGLE", "DUBSTEP", "DEMBOW", "AMAPIANO", "AFRO", "LATIN", "TRIBAL", "SYNTHWV", "CHIP", "ARCADE", "GLITCH", "INDUSTR", "HYPER", "AMBIENT", "JAZZ"], 0);
@@ -1425,6 +1461,7 @@ function makeMockDevice(opt = {}) {
   const LANE_OF_GM = [1, 0, 7, 2, 3, 8, 9, 4, 9, 6, 9, 5, 10, 10, 11, 10, 12, 11, 12, 13, 11, 15, 11, 13, 12, 14, 14, 14, 14, 14,
     14, 14, 15, 15, 13, 13, 15, 15, 13, 13, 7, 7, 7, 14, 14, 15, 15];
   const laneOf = (n) => (n < 35 ? 0 : n > 81 ? 13 : LANE_OF_GM[n - 35]);
+  const v7 = !opt.legacy && !opt.v3 && !opt.noBackup && !opt.v6;   /* protocol 7: quarter-tone steps */
   const v5 = !opt.legacy && !opt.v3;              /* SLOOP 2.0: steps with level / ratchet, DRUM_STEP, TRACK solo */
   /* the drum step as an old (v1..v4) step: its first 4 lanes as GM notes, ACC when one is hard (editor.c ed_dstep_old) */
   const dOld = (d) => {
@@ -1442,14 +1479,22 @@ function makeMockDevice(opt = {}) {
   };
   /* a step's bytes as STEP_GET sends them (v5: + lvl, hi, rat) */
   const stepOut = (b, x) => {
-    b(x.n); x.notes.forEach(b); b(x.time); b(x.flags); b(x.vel);
+    b(x.n); x.notes.forEach((k) => b(k & 0x7F)); b(x.time); b(x.flags); b(x.vel);
     if (v5) { b(x.lvl | 0); b((((x.lvl | 0) >> 7) & 1) | ((((x.rat | 0) >> 7) & 1) << 1)); b(x.rat | 0); }
+    if (v7) { b(x.notes.reduce((q, k, i) => q | (((k >> 7) & 1) << i), 0)); b(64 + (x.cents | 0)); }
   };
   /* a step written (n, 4 notes, time, flags, vel [, lvl, hi, rat]) */
   const stepIn = (x, a) => {
+    const old = x.notes || [0, 0, 0, 0];
     x.n = Math.min(4, a[0]); x.notes = a.slice(1, 5); x.time = Math.min(2, a[5]); x.flags = a[6] & 3; x.vel = a[7];
     x.lvl = a.length >= 11 ? (a[8] & 0x7F) | ((a[9] & 1) << 7) : 0;
     x.rat = a.length >= 11 ? (a[10] & 0x7F) | (((a[9] >> 1) & 1) << 7) : 0;
+    if (v7 && a.length >= 13) {                     /* qbits, cents + 64 */
+      x.notes = x.notes.map((k, i) => k | (((a[11] >> i) & 1) << 7));
+      x.cents = Math.max(-63, Math.min(63, a[12] - 64));
+    } else if (v7) {                                /* no v7 bytes: the bend stays, unchanged notes keep their Q */
+      x.notes = x.notes.map((k, i) => ((old[i] & 0x7F) === k ? k | (old[i] & 0x80) : k));
+    }
   };
   const NONE = D("-", F.INT, 0, 0, 0);
   const RATIO = [".5", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "14", "16"];
@@ -1523,7 +1568,7 @@ function makeMockDevice(opt = {}) {
     [[60, 60, 61, 61, 62, 0, 63, 63, 64, 65, 65, 0, 66, 66, 66, 67], [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]],
     [[60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75], [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]],
   ];
-  const P_COUNT = 58, G_COUNT = 32, NSTEP = 64, P_E0 = 50, G_ENGSEL = 20, P_SLCR = 45, P_CHORD = 49;
+  const P_COUNT = 58, G_COUNT = 33, NSTEP = 64, P_E0 = 50, G_ENGSEL = 20, P_SLCR = 45, P_CHORD = 49;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   /* four tracks (firmware v3); engine / preset / p / step below are the selected track's */
   const NTRK = 4, TRK_DRUM = 3;
@@ -1621,7 +1666,8 @@ function makeMockDevice(opt = {}) {
         const u = st.bank[a[0]];
         b(a[0]); b(u ? 1 : 0); b(u ? u.engine : 0); s(u ? u.name : "");
         for (let i = 0; i < P_COUNT; i++) v(u ? u.p[i] : 0);
-        for (let i = 0; i < UP.PAT; i++) { const x = u ? u.pattern[i] : [0, 0]; b(x[0]); b(x[1]); }
+        for (let i = 0; i < UP.PAT; i++) { const x = u ? u.pattern[i] : [0, 0]; b(x[0] & 0x7F); b(x[1]); }
+        if (v7) out.push(...[0, 1, 2].map((k) => { let m = 0; for (let i = 0; i < 7; i++) { const j = 7 * k + i; if (j < UP.PAT && u && (u.pattern[j][0] & 0x80)) m |= 1 << i; } return m; }));
         break;
       }
       case CMD.UP_PUT: {
@@ -1632,6 +1678,7 @@ function makeMockDevice(opt = {}) {
           const slot = r.b(), engine = r.b(), name = r.s(), p = [], pattern = [];
           for (let i = 0; i < P_COUNT; i++) p.push(r.v());
           for (let i = 0; i < UP.PAT; i++) pattern.push(patNorm(r.b(), r.b()));
+          if (v7 && r.i + 3 <= a.length) { const m = r.b() | (r.b() << 7) | (r.b() << 14); for (let i = 0; i < UP.PAT; i++) if ((m >> i) & 1 && pattern[i][0]) pattern[i][0] |= 0x80; }
           if (slot >= NB || engine >= ENG.length || !name.length || name.length > UP.NAME_MAX || /[^\x20-\x7E]/.test(name)) rc = 1;
           else {
             const saved = st.engine;                /* values clamped to the ranges of that engine */
@@ -1681,7 +1728,7 @@ function makeMockDevice(opt = {}) {
         s(opt.legacy ? "FELUCCA 0.4 BETA (MOCK)" : opt.v3 ? "FELUCCA 0.8 (MOCK)" : "FELUCCA SLOOP 2.0 (MOCK)"); b(ENG.length); b(P_COUNT); b(G_COUNT); b(NSTEP); b(P_E0);
         ENG.forEach((e) => s(e.name));
         if (!opt.legacy) b(NTRK);
-        if (v5) b(opt.noBackup ? 5 : 6);                 /* v6: backup / restore */
+        if (v5) b(opt.noBackup ? 5 : v7 ? 7 : 6);        /* v6: backup / restore, v7: quarter-tone steps */
         break;
       case CMD.GET: case CMD.SET: {
         if (a.length < 2) return null;
@@ -2050,8 +2097,8 @@ const TEXT = {
     saveFile: "ファイルに保存", loadFile: "ファイルを読み込む", projects: "プロジェクト",
     load: "読込", save: "保存", used: "使用中", empty: "空", unknown: "—",
     steps: "ステップ", reload: "再読み込み", clearSeq: "シーケンスを消去",
-    notesHelp: "ノートは C4 E4 G4 のように入力（最大 4 音、C4 = 60）。",
-    notes: "ノート", time: "タイム", acc: "アクセント", slide: "スライド", vel: "ベロシティ",
+    notesHelp: "ノートは C4 E4 G4 のように入力（最大 4 音、C4 = 60）。四分音は Ed4（半フラット）、F+3（半シャープ）。",
+    cents: "セント", centsTip: "ステップのベンド (-63..+63 セント)", notes: "ノート", time: "タイム", acc: "アクセント", slide: "スライド", vel: "ベロシティ",
     foot: "Chrome か Edge で使えます。", iconsCredit: "アイコン: Fukiai（MIT）Hügelton Instruments",
     nomidi: "このブラウザでは使えません。Chrome か Edge で開いてください。",
     denied: "MIDI（SysEx）の使用が許可されませんでした。",
@@ -2130,8 +2177,8 @@ const TEXT = {
     saveFile: "Save to file", loadFile: "Load file", projects: "Projects",
     load: "Load", save: "Save", used: "used", empty: "empty", unknown: "—",
     steps: "Steps", reload: "Reload", clearSeq: "Clear sequence",
-    notesHelp: "Enter notes like C4 E4 G4 (up to 4, C4 = 60).",
-    notes: "Notes", time: "Time", acc: "Accent", slide: "Slide", vel: "Velocity",
+    notesHelp: "Enter notes like C4 E4 G4 (up to 4, C4 = 60); quarter tones as Ed4 (half-flat) or F+3 (half-sharp).",
+    cents: "Cents", centsTip: "step bend (-63..+63 cents)", notes: "Notes", time: "Time", acc: "Accent", slide: "Slide", vel: "Velocity",
     foot: "Works in Chrome or Edge.", iconsCredit: "Icons: Fukiai (MIT), Hügelton Instruments",
     nomidi: "This browser cannot do it. Open the page in Chrome or Edge.",
     denied: "MIDI (SysEx) access was not allowed.",
@@ -2308,7 +2355,7 @@ function selfLoad() {
 const stepEdit = new Map(); /* index -> time of the last edit */
 
 /* parameter ids (firmware/src/core.h); used only when P_COUNT / G_COUNT match */
-const EXPECT = { pcount: 58, gcount: 32, pe0: 50 };
+const EXPECT = { pcount: 58, gcount: 33, pe0: 50 };   /* gcount 32: firmware before G_INTON */
 const P = { LEVEL: 0, SLEN: 29, CHORD: 49 };
 const LAYOUT = (pe0) => [
   { t: "ENV", pages: [["ENV", 0, [1, 2, 3, 4]], ["ENV DEST", 0, [5, 6, 7, 8]]] },
@@ -2571,7 +2618,7 @@ function buildGroups() {
   /* Sound: the selected track's parameters; Sequencer: its pattern settings; Settings: globals and drums */
   const groups = { groups: [], seqgroups: [], setgroups: [] };
   const { info } = dev;
-  if (info.pcount === EXPECT.pcount && info.gcount === EXPECT.gcount && info.pe0 === EXPECT.pe0) {
+  if (info.pcount === EXPECT.pcount && (info.gcount === EXPECT.gcount || info.gcount === EXPECT.gcount - 1) && info.pe0 === EXPECT.pe0) {
     for (const g of LAYOUT(info.pe0)) {
       const div = el("div", { class: "group" }, el("h2", { ic: HEAD_IC[g.t], text: g.engine ? `EDIT ${info.engines[dev.dump.engine] || ""}` : g.t }));
       for (const [title, s, ids] of g.pages) {
@@ -2762,6 +2809,7 @@ const TIMES = ["NOTE", "TIE", "REST"];
 function renderStepHead() { if (dev && dev.steps.length) renderSteps(); }
 const stepLen = () => Math.max(1, Math.min(dev.info.nstep, dev.dump.p[pSlen()] || 16));
 /* a step's notes as text: GM drum names on the drum track */
+const centsOn = () => !!dev && dev.info.proto >= 7 && !isDrum();   /* v7 firmware: a bend column on synth steps */
 const stepNotes = (s) => s.notes.slice(0, s.n).map(isDrum() ? drumName : noteName).join(" ");
 function renderSteps() {
   if (!dev || !dev.steps.length) return;
@@ -2771,7 +2819,7 @@ function renderSteps() {
   if (dg) { $("noteshelp").textContent = t("drumGridHelp"); renderDrums(); return; }
   const len = stepLen();
   const box = $("steptables");
-  const shape = len + (isDrum() ? "d" : "");
+  const shape = len + (isDrum() ? "d" : "") + (centsOn() ? "c" : "");
   $("noteshelp").textContent = t(isDrum() ? "drumHelp" : "notesHelp");
   renderGrid();
   /* keep the rows the user is typing in */
@@ -2780,7 +2828,7 @@ function renderSteps() {
   const tables = [];
   for (let b = 0; b < len; b += 16) {
     const tb = el("table", {}, el("tr", {}, el("th"), el("th", { text: t("notes") }), el("th", { text: t("time") }),
-      el("th", { text: t("acc") }), el("th", { text: t("slide") }), el("th", { text: t("vel") })));
+      el("th", { text: t("acc") }), el("th", { text: t("slide") }), el("th", { text: t("vel") }), ...(centsOn() ? [el("th", { text: t("cents") })] : [])));
     for (let i = b; i < Math.min(len, b + 16); i++) tb.append(stepRow(i));
     tables.push(tb);
   }
@@ -2792,9 +2840,10 @@ function stepRow(i) {
   const acc = el("input", { type: "checkbox" });
   const sl = el("input", { type: "checkbox" });
   const vel = el("input", { type: "number", min: 0, max: 127 });
+  const cents = centsOn() ? el("input", { type: "number", min: -63, max: 63, step: 1, title: t("centsTip") }) : null;
   const tr = el("tr", { "data-i": i }, el("td", { class: "i", text: String(i + 1) }),
-    el("td", {}, notes), el("td", {}, time), el("td", {}, acc), el("td", {}, sl), el("td", {}, vel));
-  tr._c = { notes, time, acc, sl, vel };
+    el("td", {}, notes), el("td", {}, time), el("td", {}, acc), el("td", {}, sl), el("td", {}, vel), ...(cents ? [el("td", {}, cents)] : []));
+  tr._c = { notes, time, acc, sl, vel, cents };
   fillStep(tr, dev.steps[i]);
   const send = () => writeStep(i, tr);
   notes.addEventListener("change", send);
@@ -2802,6 +2851,7 @@ function stepRow(i) {
   acc.addEventListener("change", send);
   sl.addEventListener("change", send);
   vel.addEventListener("change", send);
+  if (cents) cents.addEventListener("change", send);
   return tr;
 }
 function fillStep(tr, s) {
@@ -2813,6 +2863,7 @@ function fillStep(tr, s) {
   c.acc.checked = !!(s.flags & 1);
   c.sl.checked = !!(s.flags & 2);
   c.vel.value = String(s.vel);
+  if (c.cents) c.cents.value = String(s.cents | 0);
   tr.classList.toggle("off", !s.n || s.time === 2);
 }
 function updateStepRows() {
@@ -2859,7 +2910,8 @@ async function writeStep(i, tr) {
   let time = +c.time.value;
   if (notes.length && !old.n && time === 2) time = 0;   /* typing notes into an empty step makes it play */
   const s = { n: notes.length, notes: all, time, flags: (c.acc.checked ? 1 : 0) | (c.sl.checked ? 2 : 0),
-    vel: Math.max(0, Math.min(127, +c.vel.value || 0)), lvl: old.lvl, rat: old.rat };   /* v5: level / ratchet kept */
+    vel: Math.max(0, Math.min(127, +c.vel.value || 0)), lvl: old.lvl, rat: old.rat,
+    v7: dev.info.proto >= 7, cents: c.cents ? Math.max(-63, Math.min(63, Math.trunc(+c.cents.value || 0))) : old.cents | 0 };   /* v5: level / ratchet kept */
   if (s.n && !s.vel) s.vel = 96;
   stepEdit.set(i, performance.now());
   try {
@@ -2963,7 +3015,7 @@ $("clearseq").addEventListener("click", async () => {
     for (let i = 0; i < dev.info.nstep; i++) {
       if (i % 8 === 0) sayK("applying", `${i}/${dev.info.nstep}`);
       if (drum) { dev.dsteps[i] = parse[CMD.DRUM_STEP](await rq(req.drumStep(i, emptyDrum()))); dev.steps[i] = drumAsStep(dev.dsteps[i]); }
-      else dev.steps[i] = parse[CMD.STEP_SET](await rq(req.stepSet(i, { n: 0, notes: [0, 0, 0, 0], time: 2, flags: 0, vel: 0 })));
+      else dev.steps[i] = parse[CMD.STEP_SET](await rq(req.stepSet(i, { n: 0, notes: [0, 0, 0, 0], time: 2, flags: 0, vel: 0, v7: dev.info.proto >= 7, cents: 0 })));
     }
     $("steptables").dataset.len = "";
     renderSteps();
@@ -3057,7 +3109,7 @@ function renderSamples() {
         const root = el("input", { type: "text", class: "root", value: noteName(f.root), spellcheck: "false" });
         root.addEventListener("change", () => {
           const n = parseNote(root.value.trim());
-          if (n == null) { root.classList.add("bad"); return; }
+          if (n == null || n > 127) {   /* a sample root is a plain semitone: no quarter tones */ root.classList.add("bad"); return; }
           f.root = n;
           renderSamples();
         });
@@ -3911,7 +3963,7 @@ $("savefile").addEventListener("click", () => {
   const data = { format: "felucca-patch", version: 1, firmware: dev.info.version,
     engineName: dev.info.engines[engine], presetName: (dev.names[engine] || [])[preset],
     engine, preset, p: dev.dump.p.slice(), g: dev.dump.g.slice(),
-    steps: dev.steps.map((s) => ({ n: s.n, notes: s.notes.slice(), time: s.time, flags: s.flags, vel: s.vel })) };
+    steps: dev.steps.map((s) => ({ n: s.n, notes: s.notes.slice(), time: s.time, flags: s.flags, vel: s.vel, cents: s.cents | 0 })) };
   download(`felucca-${fileSlug(data.engineName || "patch")}-${fileSlug(data.presetName || preset)}.json`, data);
 });
 $("loadfile").addEventListener("click", () => { $("file").value = ""; $("file").click(); });
@@ -3943,7 +3995,7 @@ $("file").addEventListener("change", async () => {
         const s = data.steps[i] || {};
         if (i % 8 === 0) sayK("applying", `steps ${i}/${m}`);
         dev.steps[i] = parse[CMD.STEP_SET](await rq(req.stepSet(i, {
-          n: s.n | 0, notes: Array.isArray(s.notes) ? s.notes : [0, 0, 0, 0], time: s.time ?? 2, flags: s.flags | 0, vel: s.vel | 0 })));
+          n: s.n | 0, notes: Array.isArray(s.notes) ? s.notes : [0, 0, 0, 0], time: s.time ?? 2, flags: s.flags | 0, vel: s.vel | 0, v7: dev.info.proto >= 7, cents: s.cents | 0 })));
       }
     }
     dev.dump = await getDump();

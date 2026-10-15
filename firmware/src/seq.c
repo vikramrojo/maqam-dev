@@ -19,25 +19,7 @@
  *   ARP  note repeat (roll) at G_ROLL     SEQ   steps 1..16 (the UI: ui_layers.c)
  *   SCL  the key of the song (the UI)     GLO   mute / solo / tap tempo (the UI)
  * On the drum track OCT- / OCT+ held play (and record) ghost / hard hits. */
-static const uint16_t SCALE_MASK[] = {
-    0xFFF,                                   /* CHR */
-    (1 << 0) | (1 << 2) | (1 << 4) | (1 << 5) | (1 << 7) | (1 << 9) | (1 << 11),   /* MAJ */
-    (1 << 0) | (1 << 2) | (1 << 3) | (1 << 5) | (1 << 7) | (1 << 8) | (1 << 10),   /* MIN */
-    (1 << 0) | (1 << 2) | (1 << 3) | (1 << 5) | (1 << 7) | (1 << 9) | (1 << 10),   /* DOR */
-    (1 << 0) | (1 << 2) | (1 << 4) | (1 << 5) | (1 << 7) | (1 << 9) | (1 << 10),   /* MIX */
-    (1 << 0) | (1 << 2) | (1 << 4) | (1 << 7) | (1 << 9),                          /* PEN */
-    (1 << 0) | (1 << 3) | (1 << 5) | (1 << 7) | (1 << 10),                         /* MPEN */
-    (1 << 0) | (1 << 2) | (1 << 3) | (1 << 5) | (1 << 7) | (1 << 8) | (1 << 11),   /* HARM */
-    (1 << 0) | (1 << 1) | (1 << 3) | (1 << 5) | (1 << 7) | (1 << 8) | (1 << 10),   /* PHRY */
-    (1 << 0) | (1 << 2) | (1 << 4) | (1 << 6) | (1 << 7) | (1 << 9) | (1 << 11),   /* LYD */
-    (1 << 0) | (1 << 1) | (1 << 3) | (1 << 5) | (1 << 6) | (1 << 8) | (1 << 10),   /* LOC */
-    (1 << 0) | (1 << 2) | (1 << 3) | (1 << 5) | (1 << 7) | (1 << 9) | (1 << 11),   /* MEL (ascending) */
-    (1 << 0) | (1 << 3) | (1 << 5) | (1 << 6) | (1 << 7) | (1 << 10),              /* BLUES (minor) */
-    (1 << 0) | (1 << 2) | (1 << 4) | (1 << 6) | (1 << 8) | (1 << 10),              /* WHOLE */
-    (1 << 0) | (1 << 1) | (1 << 3) | (1 << 4) | (1 << 6) | (1 << 7) | (1 << 9) | (1 << 10), /* DIMHW */
-    (1 << 0) | (1 << 2) | (1 << 3) | (1 << 5) | (1 << 6) | (1 << 8) | (1 << 9) | (1 << 11), /* DIMWH */
-};
-#define NSCALES (sizeof SCALE_MASK / sizeof SCALE_MASK[0])
+/* maqam: the scales are SCALES[] (build/gen/scales.h, 24-bit masks); the 12-bit SCALE_MASK[] and NSCALES are gone */
 #define SEQ_NONE 0xFFFFFFFFu
 
 #define KB_SILENT 255u
@@ -60,9 +42,9 @@ static uint32_t trk_midi_ch(uint32_t i)    /* MIDI channel 0..15 of track i (key
     return song.g[G_DRCH] ? (uint32_t)song.g[G_DRCH] - 1u : 9u;
 }
 
-static uint32_t scale_mask(const track_t *t)
+static uint32_t scale_mask(const track_t *t)           /* maqam: the 24-bit ascending mask (bit = quarter-tone slot from the root) */
 {
-    return SCALE_MASK[clamp(t->p[P_SCALE], 0, NSCALES - 1)];
+    return SCALES[scale_index(t)].asc;
 }
 
 /* ---------------------------------------------------------- layers --- */
@@ -101,8 +83,6 @@ static void lk_push(uint32_t layer, uint32_t k, uint32_t down)
  * scale from C4 = the root, the black keys are silent; SNAP: every key, rounded down into the scale */
 static uint32_t kb_map(const track_t *t, uint32_t k)
 {
-    static const int8_t DEGREE[12] = {0, -1, 1, -1, 2, 3, -1, 4, -1, 5, -1, 6};
-    int32_t n = 53 + (int32_t)k;
     if (is_drum(t))
         return LANE_NOTE[lane_of_key(k)];
     if (ENGINES[t->eng_req % NENGINES] == &ENG_SAMPLE && drum_set() >= 0 &&   /* (the engine it switches to) */
@@ -110,40 +90,16 @@ static uint32_t kb_map(const track_t *t, uint32_t k)
         return (uint32_t)clamp(36 + 12 * song.octave + (int32_t)k, 0, 127);
 #if FELUCCA_SLICE
     if (ENGINES[t->eng_req % NENGINES] == &ENG_SLICE)   /* SLICE: lowest key = slice 0 (C4 + ROOT), no scale */
-        return (uint32_t)clamp(SLC_BASE + t->p[P_ROOT] + 12 * song.octave + (int32_t)k, 0, 127);
+        return (uint32_t)clamp(SLC_BASE + root_semi(t) + 12 * song.octave + (int32_t)k, 0, 127);
 #endif
-    if (t->p[P_QUANT] == 1 && !t->p[P_CHORD]) {  /* SNAP: every key, rounded down to the scale (the old ON) */
-        uint32_t mask = scale_mask(t), guard = 12;
-        n += 12 * song.octave + t->p[P_TRANS];
-        while (guard-- && !((mask >> (uint32_t)((n - t->p[P_ROOT] + 120) % 12)) & 1u))
-            n--;
-        return (uint32_t)clamp(n, 0, 127);
+    {   /* maqam: SNAP / WHITE / chromatic on the 24-bit mask, the direction of play, the OCT-/OCT+ quarter tone (pitch24.h) */
+        uint32_t desc = k < kb_last_key[trk_index(t) % NTRK], r;
+        int32_t mod = oct_mod(fm1_in.buttons, dyn_bit[0], dyn_bit[1], ly_bit[LY_FX] | ly_bit[LY_ERASE] | ly_bit[LY_STEP] |
+                              ly_bit[LY_SCALE] | ly_bit[LY_MIX] | ly_bit[LY_SONG]);
+        kb_desc_now = (uint8_t)desc;
+        r = kb_quant(t, k, desc, mod);
+        return r == P24_SILENT ? KB_SILENT : r;
     }
-    if (t->p[P_QUANT] == 2 || t->p[P_CHORD]) {   /* WHITE: white keys walk the scale, black keys are silent */
-        uint32_t mask = t->p[P_CHORD] && !t->p[P_SCALE] ? SCALE_MASK[2] : scale_mask(t), i;
-        int32_t count = 0, degree = DEGREE[n % 12], oct;
-        if (degree < 0)
-            return KB_SILENT;
-        /* C4 is the root. Walk scale degrees on successive white keys, including
-         * below C4; scales with 5, 6, 8 or 12 notes still have no duplicated degrees. */
-        degree += (n / 12 - 5) * 7;
-        for (i = 0; i < 12u; i++)
-            count += (mask >> i) & 1u;
-        oct = degree / count;
-        degree %= count;
-        if (degree < 0) {
-            degree += count;
-            oct--;
-        }
-        for (i = 0; i < 12u; i++)
-            if ((mask >> i) & 1u) {
-                if (!degree)
-                    break;
-                degree--;
-            }
-        n = 60 + t->p[P_ROOT] + 12 * oct + (int32_t)i;
-    }
-    return (uint32_t)clamp(n + 12 * song.octave + t->p[P_TRANS], 0, 127);
 }
 
 /* chord mode (P_CHORD): the chord of the scale built on note n (in the scale; CHR: minor), into c[];
@@ -158,23 +114,19 @@ static const int8_t CHORD_DEG[6][4] = {
 };
 static uint32_t chord_notes(const track_t *t, uint32_t n, uint8_t *c)
 {
-    uint32_t type = (uint32_t)clamp(t->p[P_CHORD], 0, 5), mask = t->p[P_SCALE] ? scale_mask(t) : SCALE_MASK[2];
+    uint32_t type = (uint32_t)clamp(t->p[P_CHORD], 0, 5);
+    uint32_t mask = scale_dir_mask(t->p[P_SCALE] ? &SCALES[scale_index(t)] : &SCALES[2], kb_desc_now);   /* maqam: 24-bit mask, the key's direction */
     uint32_t k = 0, j;
     if (type == 5u) {
-        static const uint8_t PW[3] = {0, 7, 12};
+        static const uint8_t PW[3] = {0, 14, 24};          /* maqam: quarter tones: root, fifth, octave */
         for (j = 0; j < 3u; j++)
-            if (n + PW[j] < 128u)
-                c[k++] = (uint8_t)(n + PW[j]);
+            if (note_p24(n) + PW[j] < 256u)
+                c[k++] = (uint8_t)note_from_p24(note_p24(n) + PW[j]);
         return k;
     }
     for (j = 0; j < 4u && CHORD_DEG[type][j] >= 0; j++) {
-        int32_t m = (int32_t)n, d = CHORD_DEG[type][j], guard = 48;
-        while (d > 0 && guard--) {                       /* d scale degrees up */
-            m++;
-            if ((mask >> (uint32_t)((m - t->p[P_ROOT] + 120) % 12)) & 1u)
-                d--;
-        }
-        if (m < 128)
+        uint32_t m = degree_up(mask, t->p[P_ROOT], n, CHORD_DEG[type][j]);   /* maqam: d degrees up on the 24-bit mask */
+        if (m != P24_SILENT)
             c[k++] = (uint8_t)m;
     }
     return k;
@@ -266,6 +218,7 @@ static void step_add(track_t *t, uint32_t idx, uint32_t note, uint32_t vel, uint
         s->vel = 0;
         s->lvl = 0;
         s->rat = 0;
+        s->cents = 0;                               /* maqam */
     }
     for (k = 0; k < s->n && s->note[k] != note; k++)
         ;
@@ -578,10 +531,10 @@ static void ft_block(void)
  * every step the sequencer enters while the key is held (MPC style); stopped: from every step. */
 static uint8_t er_trk;
 static uint16_t er_lanes;                     /* drums: lanes held */
-static uint32_t er_notes[4];                  /* synth: notes held (bit per MIDI note) */
+static uint32_t er_notes[8];                  /* synth: notes held (bit per note byte, maqam: 256 with the quarter-tone flag) */
 static volatile uint8_t er_flash;             /* something was erased (the UI flashes) */
 
-static int er_has(uint32_t note) { return (er_notes[(note >> 5) & 3u] >> (note & 31u)) & 1u; }
+static int er_has(uint32_t note) { return (er_notes[(note >> 5) & 7u] >> (note & 31u)) & 1u; }   /* maqam: 8 words */
 static void erase_step(track_t *t, uint32_t idx)
 {
     if (is_drum(t)) {
@@ -627,7 +580,7 @@ static void erase_now(track_t *t)             /* a key just went down */
             erase_step(t, i);
     }
 }
-static int erasing(const track_t *t) { return trk_index(t) == er_trk && (er_lanes || er_notes[0] || er_notes[1] || er_notes[2] || er_notes[3]); }
+static int erasing(const track_t *t) { return trk_index(t) == er_trk && (er_lanes || er_notes[0] || er_notes[1] || er_notes[2] || er_notes[3] || er_notes[4] || er_notes[5] || er_notes[6] || er_notes[7]); }   /* maqam: 8 words */
 
 /* ------------------------------------------------------------- arp --- */
 static void arp_add(track_t *t, uint32_t note)
@@ -669,14 +622,14 @@ static uint32_t arp_next(track_t *t)
     cnt = t->nheld;
     if (!t->p[P_AORDER])
         for (i = 1; i < cnt; i++)
-            for (j = i; j > 0 && list[j - 1] > list[j]; j--) {
+            for (j = i; j > 0 && note_p24(list[j - 1]) > note_p24(list[j]); j--) {   /* maqam: p24 order */
                 uint32_t x = list[j];
                 list[j] = list[j - 1];
                 list[j - 1] = x;
             }
     for (o = 0; o < (uint32_t)t->p[P_AOCT]; o++)
         for (i = 0; i < cnt && len < 64u; i++)
-            list[len++] = (uint32_t)clamp((int32_t)list[i] + 12 * (int32_t)o, 0, 127);
+            list[len++] = note_shift(list[i], 12 * (int32_t)o, 0);   /* maqam: keeps the quarter tone */
     t->arp_idx++;
     switch (t->p[P_AMODE]) {
     case 2:
@@ -750,7 +703,9 @@ static void arp_tick(track_t *t, uint32_t adv)
         uint32_t n = arp_next(t);
         t->arp_note = (uint8_t)n;
         t->arp_off = slen * (uint32_t)t->p[P_AGATE] / 128u;
-        trk_note_on(t, n, 100);
+        p24_plain = (uint8_t)p24_midi_get(t, n);          /* maqam: a MIDI note stays plain 12-tone */
+        trk_note_on(t, n, 100, 0);   /* maqam: cents */
+        p24_plain = 0;
         if (((song.rec >> trk_index(t)) & 1u) && song.playing)
             rec_note(t, n, 100, 0, 0);
     }
@@ -794,7 +749,7 @@ static void input_on(track_t *t, uint32_t note, uint32_t vel)
     }
     if (((song.rec >> trk_index(t)) & 1u) && song.playing)
         rec_note(t, note, vel, 0, 1);
-    trk_note_on(t, note, vel);
+    trk_note_on(t, note, vel, 0);   /* maqam: cents */
 }
 
 static void input_off(track_t *t, uint32_t note)
@@ -823,7 +778,7 @@ static void drum_input(uint32_t lane, uint32_t lvl, uint32_t rat, int rec)
         ft_note_on(lane, lvl);
     if (rec && ((song.rec >> TRK_DRUM) & 1u) && song.playing)
         rec_hit(t, lane, lvl, rat);
-    trk_note_on(t, LANE_NOTE[lane], lvl_vel(lvl, 100));
+    trk_note_on(t, LANE_NOTE[lane], lvl_vel(lvl, 100), 0);   /* maqam: cents */
 }
 
 /* -------------------------------------------------------------- roll --- */
@@ -876,7 +831,7 @@ static void roll_hit(uint32_t r)
     arm_start(t);
     if (roll[r].off)
         trk_note_off(t, roll[r].note);
-    trk_note_on(t, roll[r].note, lvl_vel(roll[r].lvl, 100));
+    trk_note_on(t, roll[r].note, lvl_vel(roll[r].lvl, 100), 0);   /* maqam: cents */
     roll[r].off = u / 2u;
     if (rec)
         rec_note(t, roll[r].note, 100, rat, 0);
@@ -986,6 +941,7 @@ static void key_down(uint32_t k)
         if (er_trk != sel) {
             er_lanes = 0;
             er_notes[0] = er_notes[1] = er_notes[2] = er_notes[3] = 0;
+            er_notes[4] = er_notes[5] = er_notes[6] = er_notes[7] = 0;   /* maqam: 8 words */
             er_trk = (uint8_t)sel;
         }
         if (is_drum(t)) {
@@ -1000,7 +956,7 @@ static void key_down(uint32_t k)
             if (!t->p[P_CHORD])
                 kb_nt[k][0] = (uint8_t)n;
             for (i = 0; i < kb_n[k]; i++)
-                er_notes[(kb_nt[k][i] >> 5) & 3u] |= 1u << (kb_nt[k][i] & 31u);
+                er_notes[(kb_nt[k][i] >> 5) & 7u] |= 1u << (kb_nt[k][i] & 31u);   /* maqam: 8 words */
         }
         erase_now(t);
         return;
@@ -1026,6 +982,7 @@ static void key_down(uint32_t k)
         uint32_t n = kb_map(t, k);
         if (n == KB_SILENT)
             return;
+        kb_last_key[trk_index(t) % NTRK] = (uint8_t)k;   /* maqam: the direction of the next key (D5) */
         if (layer == LY_ROLL) {
             kb_kind[k] = KS_ROLL;
             kb_nt[k][0] = (uint8_t)n;
@@ -1042,8 +999,9 @@ static void key_down(uint32_t k)
         }
         mc = trk_midi_ch(sel);
         for (i = 0; i < kb_n[k]; i++) {
+            p24_midi_mark(t, kb_nt[k][i], 0);                 /* maqam: a key, not MIDI */
             input_on(t, kb_nt[k][i], 100);
-            midi_out_event(0x09u | (0x90u | mc) << 8 | (uint32_t)kb_nt[k][i] << 16 | 100u << 24);
+            midi_out_event(0x09u | (0x90u | mc) << 8 | note_semi(kb_nt[k][i]) << 16 | 100u << 24);   /* maqam: MIDI out is the semitone */
         }
         /* the pen of the SEQ layer: the keys down now (a chord), else this note */
         if (!(kb_prev & ~(1u << k)) || pen_n >= 4u)
@@ -1073,7 +1031,7 @@ static void key_up(uint32_t k)
             er_lanes &= (uint16_t)~(1u << kb_nt[k][0]);
         else
             for (i = 0; i < kb_n[k]; i++)
-                er_notes[(kb_nt[k][i] >> 5) & 3u] &= ~(1u << (kb_nt[k][i] & 31u));
+                er_notes[(kb_nt[k][i] >> 5) & 7u] &= ~(1u << (kb_nt[k][i] & 31u));   /* maqam: 8 words */
         return;
     case KS_ROLL:
         for (i = 0; i < NROLL; i++)
@@ -1084,7 +1042,7 @@ static void key_up(uint32_t k)
         mc = trk_midi_ch(kb_trk[k] % NTRK);
         for (i = 0; i < kb_n[k]; i++) {
             input_off(t, kb_nt[k][i]);
-            midi_out_event(0x08u | (0x80u | mc) << 8 | (uint32_t)kb_nt[k][i] << 16);
+            midi_out_event(0x08u | (0x80u | mc) << 8 | note_semi(kb_nt[k][i]) << 16);   /* maqam: MIDI out is the semitone */
         }
         return;
     case KS_DRUM:
@@ -1346,7 +1304,7 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
             skip |= 1u << i;                        /* (a roll plays it) */
     for (i = 0; i < s->n; i++)
         if (!((skip >> i) & 1u))
-            trk_note_on(t, s->note[i], step_vel(s, i));
+            trk_note_on(t, s->note[i], step_vel(s, i), s->cents);   /* maqam: the step's bend */
     if (slide_in)                                   /* release what is not held over */
         for (i = 0; i < t->seq_n; i++) {
             for (j = 0; j < s->n && s->note[j] != t->seq_notes[i]; j++)
@@ -1368,7 +1326,7 @@ static void drum_step(track_t *t, const dstep_t *s, uint32_t skip)
     uint32_t l, m = dstep_mask(s) & ~skip & ~roll_lanes(t);
     for (l = 0; m; l++, m >>= 1)
         if (m & 1u)
-            trk_note_on(t, LANE_NOTE[l], lvl_vel(dstep_lvl(s, l), 100));
+            trk_note_on(t, LANE_NOTE[l], lvl_vel(dstep_lvl(s, l), 100), 0);   /* maqam: cents */
 }
 
 /* ratchets: the further hits of the playing step's notes / lanes, each at its share of the step */
@@ -1386,7 +1344,7 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
             done = (t->rat_lanes >> (2u * i)) & 3u;
             if (h > done && h < hits) {
                 t->rat_lanes = (t->rat_lanes & ~(3u << (2u * i))) | h << (2u * i);
-                trk_note_on(t, LANE_NOTE[i], lvl_vel(dstep_lvl(s, i), 100));
+                trk_note_on(t, LANE_NOTE[i], lvl_vel(dstep_lvl(s, i), 100), 0);   /* maqam: cents */
             }
         }
         return;
@@ -1404,7 +1362,7 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
                 uint32_t j;
                 t->rat_done[i] = (uint8_t)h;
                 trk_note_off(t, s->note[i]);
-                trk_note_on(t, s->note[i], step_vel(s, i));
+                trk_note_on(t, s->note[i], step_vel(s, i), s->cents);   /* maqam: the step's bend */
                 t->seq_off = slen / hits * (uint32_t)t->p[P_SGATE] / 128u;
                 for (j = 0; j < t->seq_n && t->seq_notes[j] != s->note[i]; j++)
                     ;
@@ -1679,9 +1637,13 @@ static void events_block(uint32_t n)
             if (st == 0x90u && d2)
                 drum_input(lane_of_note(d1), vel_lvl(d2), 0, 1);
         } else if (st == 0x90u && d2) {
+            p24_plain = 1;                            /* maqam: MIDI in is plain 12-tone: no intonation offset */
+            p24_midi_mark(t, d1, 1);
             input_on(t, d1, d2);
+            p24_plain = 0;
         } else {
             input_off(t, d1);
+            p24_midi_mark(t, d1, 0);                  /* maqam: released: the mark goes */
         }
     }
     for (i = 0; i < NTRK; i++)

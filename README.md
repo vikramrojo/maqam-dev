@@ -105,7 +105,7 @@ Keys 1, 5, 9 and 13 glow dimly while a layer is held: the first key of each row 
 - **Nine engines:** analog, 4-op FM, phase distortion, three-oscillator, tonewheel organ, formant voice, granular, lo-fi chip, sampler.
 - **68 sounds, browsed by kind** — basses (sliding 808s, acid 303, reese, FM), keys (Rhodes, a real Steinway grand, house and afro keys), organs, pads, leads (supersaw, talkbox), plucks and bells, stabs and dub chords — every one level-matched. **32 slots** for your own presets.
 - Envelopes (with a pitch punch for 808s), LFO, arpeggiator, glide and voice modes (POLY, MONO, LEGATO, UNISON), per-track drive and slicer, sends to a **stereo chorus**, a **tempo delay** and a **stereo reverb**.
-- **Key and chords (SCL):** the key of the song for all synths, 16 scales, one-key chords (triad, 7th, 9th, sus4, power), keys snapped to the scale or the scale on the white keys.
+- **Key and chords (SCL):** the key of the song for all synths (24 roots, half-flats included), **52 scales in four sets — Western, Turkish makam, Arabic maqam, Indian raga — with quarter tones, ascending / descending forms and an EQUAL / TRADITIONAL tuning switch**, one-key chords (triad, 7th, 9th, sus4, power), keys snapped to the scale or the scale on the white keys, OCT− / OCT+ + a key for a half-flat or half-sharp.
 
 ### Recording and the sequencer
 

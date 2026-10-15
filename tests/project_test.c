@@ -95,7 +95,9 @@ static int track_ok_v2(const proj_trk_t *n, const proj_trk_v2_t *o, uint32_t t)
     int ok = (t == TRK_DRUM ? n->engine == 0 && n->preset == 0 : n->engine == o->engine && n->preset == o->preset) &&
              steps_ok(n, o->step, t == TRK_DRUM);
     for (k = 0; k <= P_DETUNE; k++)
-        if (k != P_SSWING && k != P_ASWING)
+        if (k == P_ROOT)                                    /* maqam: the old 0..11 root, in quarter tones */
+            ok &= n->p[k] == 2 * clamp(oldv(t, k), 0, 11);
+        else if (k != P_SSWING && k != P_ASWING)
             ok &= n->p[k] == oldv(t, k);
     ok &= n->p[P_SLCR] == 0 && n->p[P_SLPAT] == TP[P_SLPAT].def && n->p[P_SLRATE] == TP[P_SLRATE].def &&
           n->p[P_SLDEPTH] == TP[P_SLDEPTH].def && n->p[P_CHORD] == 0;
@@ -121,7 +123,7 @@ int main(void)
 
     bad += check("layout: P_CHORD just before P_E0 (50), P_COUNT = format 3's + 1",
                  P_CHORD + 1 == P_E0 && P_E0 == 50 && P_COUNT == PROJ_NP_V3 + 1u && P_SLDEPTH + 1 == P_CHORD);
-    bad += check("format 4 fits one flash object; 4 slots fit .noinit", sizeof(project_t) <= 4096u - 256u &&
+    bad += check("format 5 fits one flash object; 4 slots fit .noinit", sizeof(project_t) <= 4096u - 256u &&
                  4u * sizeof(project_t) < 0x3D50u - 1024u);
 
     /* format 3 (SLOOP 1.x) */
@@ -137,26 +139,28 @@ int main(void)
     v3.sum = proj_hash(&v3, sizeof v3 - 4u);
     memcpy(&buf, &v3, sizeof v3);
     ok = proj_import(&q, &buf, (int)sizeof v3);
-    bad += check("FUN3 -> FUN4: converted, valid format 4 slot", ok && proj_ok(&q) && q.magic == PROJ_MAGIC);
+    bad += check("FUN3 -> FUN5: converted, valid format 4 slot", ok && proj_ok(&q) && q.magic == PROJ_MAGIC);
     ok = q.sel == 3 && q.g[G_SWING] == 40;
     for (i = 0; i < PROJ_NG_V3; i++)
         ok &= i == G_SWING || q.g[i] == (int16_t)(300 + i);
     for (i = PROJ_NG_V3; i < G_COUNT; i++)
         ok &= q.g[i] == GP[i].def;
-    bad += check("FUN3 -> FUN4: globals (swing 50 -> 40: the MPC scale), the new ones default", ok);
+    bad += check("FUN3 -> FUN5: globals (swing 50 -> 40: the MPC scale), the new ones default", ok);
     ok = 1;
     for (t = 0; t < NTRK; t++) {
         const proj_trk_t *n = &q.t[t];
         uint32_t k;
         ok &= (t == TRK_DRUM ? n->engine == 0 : n->engine == OLD_ENG[t]) && steps_ok(n, v3.t[t].step, t == TRK_DRUM);
         for (k = 0; k < PROJ_NP_V3 - 8u; k++)
-            if (k != P_SSWING && k != P_ASWING)
+            if (k == P_ROOT)                                /* maqam: quarter tones */
+                ok &= n->p[k] == 2 * clamp(oldv(t, k), 0, 11);
+            else if (k != P_SSWING && k != P_ASWING)
                 ok &= n->p[k] == oldv(t, k);
         ok &= n->p[P_SSWING] == 40 && n->p[P_ASWING] == 80 && n->p[P_CHORD] == 0;
         for (k = 0; k < 8u; k++)
             ok &= n->p[P_E0 + k] == oldv(t, PROJ_NP_V3 - 8u + k);
     }
-    bad += check("FUN3 -> FUN4: parameters (P_E0.. moved), steps, drum notes -> lanes", ok);
+    bad += check("FUN3 -> FUN5: parameters (P_E0.. moved), steps, drum notes -> lanes", ok);
 
     /* format 2, as written before the SLICER */
     memset(&v2, 0, sizeof v2);
@@ -171,16 +175,16 @@ int main(void)
     bad += check("FUN2 image is 2552 bytes (as stored)", sizeof v2 == 2552u);
     memcpy(&buf, &v2, sizeof v2);
     ok = proj_import(&q, &buf, (int)sizeof v2);
-    bad += check("FUN2 -> FUN4: converted, valid format 4 slot", ok && proj_ok(&q) && q.magic == PROJ_MAGIC);
+    bad += check("FUN2 -> FUN5: converted, valid format 4 slot", ok && proj_ok(&q) && q.magic == PROJ_MAGIC);
     ok = q.sel == 2;
     for (i = 0; i < PROJ_NG_V2; i++)
         ok &= i == G_SWING || q.g[i] == (int16_t)(500 + i);
-    bad += check("FUN2 -> FUN4: globals and selected track", ok);
+    bad += check("FUN2 -> FUN5: globals and selected track", ok);
     ok = 1;
     for (t = 0; t < NTRK; t++)
         ok &= track_ok_v2(&q.t[t], &v2.t[t], t);
-    bad += check("FUN2 -> FUN4: every parameter mapped, SLICER OFF, CHORD OFF (4 tracks)", ok);
-    bad += check("FUN2 -> FUN4: engine bytes kept (WHEEL 7, ANALOG 0, TRIO 6), drum 0",
+    bad += check("FUN2 -> FUN5: every parameter mapped, SLICER OFF, CHORD OFF (4 tracks)", ok);
+    bad += check("FUN2 -> FUN5: engine bytes kept (WHEEL 7, ANALOG 0, TRIO 6), drum 0",
                  q.t[0].engine == 7 && q.t[1].engine == 0 && q.t[2].engine == 6 && q.t[3].engine == 0 &&
                  str_eq(ENGINES[7]->name, "WHEEL") && str_eq(ENGINES[6]->name, "TRIO") && NENGINES > 8);
 
@@ -191,7 +195,7 @@ int main(void)
     dstep_set(&q.t[TRK_DRUM].dstep[5], 13, LV_GHOST, 2);
     q.sum = proj_sum(&q);
     memcpy(&buf, &q, sizeof q);
-    bad += check("FUN4 -> FUN4: as stored (levels, ratchets, lanes, engine 8)",
+    bad += check("FUN5 -> FUN5: as stored (levels, ratchets, lanes, engine 8)",
                  proj_import(&q2, &buf, (int)sizeof q) && !memcmp(&q, &q2, sizeof q) && q2.t[1].engine == 8);
 
     /* damaged / wrong size */
@@ -222,7 +226,7 @@ int main(void)
         ok &= q.t[t].preset == 0xFF && q.t[t].p[P_SLCR] == 0 && q.t[t].p[P_LEVEL] == TP[P_LEVEL].def &&
               q.t[t].p[P_E0] == ENGINES[trk_def_engine(t)]->edit[0].def &&
               (t == TRK_DRUM ? dstep_mask(&q.t[t].dstep[0]) == 0u : q.t[t].step[0].time == ST_REST);
-    bad += check("FUN1 -> FUN4: track 1 mapped, tracks 2..4 defaults", ok);
+    bad += check("FUN1 -> FUN5: track 1 mapped, tracks 2..4 defaults", ok);
 
     /* capture / apply: the working project round trip */
     host_tracks_init();
@@ -238,6 +242,96 @@ int main(void)
     ok = trk[2].p[P_SLEN] == 7 && trk[1].step[2].n == 2 && trk[1].step[2].lvl == 0x0D && song.g[G_DUST] == 33 &&
          dstep_has(&TDRUM->dstep[9], 4) && dstep_lvl(&TDRUM->dstep[9], 4) == LV_SOFT && dstep_rat(&TDRUM->dstep[9], 4) == 1u;
     bad += check("the working project: capture -> apply round trip (levels, lanes, DUST)", ok);
+
+
+    /* maqam: FUN5: a FUN4 project (SLOOP 2.0 .. 2.3) imports with bend 0, ROOT doubled, the scale kept, TRADITIONAL */
+    {
+        static project_v4_t v4;
+        static uint8_t blob[sizeof(project_v4_t)];
+        uint32_t k;
+        memset(&v4, 0, sizeof v4);
+        v4.magic = PROJ_MAGIC_V4;
+        v4.size = sizeof v4;
+        for (i = 0; i < PROJ_NG_V4; i++)
+            v4.g[i] = (int16_t)(400 + i);
+        v4.sel = 2;
+        for (t = 0; t < NTRK; t++) {
+            for (k = 0; k < P_COUNT; k++)
+                v4.t[t].p[k] = TP[k].def;
+            v4.t[t].p[P_ROOT] = (int16_t)(2 + t);              /* D, D#, E (and the drum track's F) */
+            v4.t[t].p[P_SCALE] = 2;                            /* MIN */
+            v4.t[t].engine = 1;
+            for (k = 0; k < NSTEP; k++) {
+                if (t == TRK_DRUM) {
+                    v4.t[t].dstep[k].on[0] = (uint8_t)k;
+                    v4.t[t].dstep[k].rat[3] = (uint8_t)(k + 1);
+                } else {
+                    v4.t[t].step[k].note[0] = (uint8_t)(40 + k);
+                    v4.t[t].step[k].note[1] = (uint8_t)(60 + t);
+                    v4.t[t].step[k].n = 2;
+                    v4.t[t].step[k].time = ST_NOTE;
+                    v4.t[t].step[k].vel = (uint8_t)(90 + t);
+                    v4.t[t].step[k].lvl = (uint8_t)k;
+                    v4.t[t].step[k].rat = (uint8_t)(k >> 1);
+                }
+            }
+        }
+        v4.sum = proj_hash(&v4, sizeof v4 - 4u);
+        memcpy(blob, &v4, sizeof v4);
+        ok = proj_import(&q, blob, (int)sizeof v4) && proj_ok(&q) && q.magic == PROJ_MAGIC;
+        for (t = 0; t < NTRK; t++) {
+            ok &= q.t[t].p[P_ROOT] == (int16_t)(2 * (2 + t)) && q.t[t].p[P_SCALE] == 2 && q.t[t].engine == 1;
+            for (k = 0; k < NSTEP; k++) {
+                if (t == TRK_DRUM) {
+                    ok &= q.t[t].dstep[k].on[0] == (uint8_t)k && q.t[t].dstep[k].rat[3] == (uint8_t)(k + 1) && q.t[t].dstep[k].rsv == 0;
+                } else {
+                    const step_t *a = &q.t[t].step[k];
+                    ok &= a->note[0] == 40 + k && a->note[1] == 60 + t && a->n == 2 && a->vel == 90 + t && a->lvl == (uint8_t)k &&
+                          a->rat == (uint8_t)(k >> 1) && a->cents == 0;
+                }
+            }
+        }
+        ok &= q.sel == 2 && q.g[G_INTON] == 1 && q.g[G_BPM] == 400 + G_BPM && q.g[G_NEWPRJ] == 400 + G_NEWPRJ;
+        bad += check("FUN4 -> FUN5: root D / MIN kept (root 4, MIN), bend 0, steps and lanes intact, TRADITIONAL", ok);
+        v4.sum ^= 1;                                                  /* a damaged FUN4 is refused */
+        memcpy(blob, &v4, sizeof v4);
+        bad += check("a FUN4 with a bad checksum: refused", !proj_import(&q, blob, (int)sizeof v4));
+        bad += check("FUN5 fits one flash object; 4 slots fit .noinit (sizeof project_t printed below)",
+                     sizeof(project_t) <= 4096u - 256u && 4u * sizeof(project_t) < 0x3D50u - 1024u);
+        printf("project: sizeof(project_t) = %u (FUN4: %u), 4 slots = %u of %u\n", (unsigned)sizeof(project_t), (unsigned)sizeof(project_v4_t),
+               (unsigned)(4u * sizeof(project_t)), 0x3D50u - 1024u);
+    }
+    /* quarter tones and bends round-trip; a damaged bend clamps */
+    host_tracks_init();
+    trk[0].p[P_ROOT] = 7;                                  /* E-half-flat */
+    trk[2].p[P_ROOT] = 23;
+    song.g[G_INTON] = 0;
+    trk[0].step[0].n = 2; trk[0].step[0].time = ST_NOTE; trk[0].step[0].note[0] = 63u | 0x80u; trk[0].step[0].note[1] = 127u | 0x80u; trk[0].step[0].cents = -63;
+    trk[0].step[1].n = 1; trk[0].step[1].time = ST_NOTE; trk[0].step[1].note[0] = 64; trk[0].step[1].cents = 0;
+    trk[0].step[2].n = 1; trk[0].step[2].time = ST_NOTE; trk[0].step[2].note[0] = 70u | 0x80u; trk[0].step[2].cents = 63;
+    proj_capture(&q);
+    host_tracks_init();
+    proj_apply(&q, 1);
+    ok = trk[0].p[P_ROOT] == 7 && trk[2].p[P_ROOT] == 23 && song.g[G_INTON] == 0 &&
+         trk[0].step[0].note[0] == (63u | 0x80u) && trk[0].step[0].note[1] == (127u | 0x80u) && trk[0].step[0].cents == -63 &&
+         trk[0].step[1].note[0] == 64 && trk[0].step[1].cents == 0 && trk[0].step[2].note[0] == (70u | 0x80u) && trk[0].step[2].cents == 63;
+    bad += check("FUN5: ROOT 7 / 23, EQUAL, Q notes and bends -63 / 0 / +63 round-trip", ok);
+    q.t[0].step[2].cents = -100;
+    q.t[0].step[1].cents = 127;
+    q.sum = proj_sum(&q);
+    proj_apply(&q, 1);
+    bad += check("a bend of -100 is clamped to -63 (127 to +63) when applied", trk[0].step[2].cents == -63 && trk[0].step[1].cents == 63);
+    song.g[G_INTON] = 1;
+    proj_capture(&q);
+    song.g[G_INTON] = 0;
+    proj_apply(&q, 1);
+    bad += check("... and TRADITIONAL", song.g[G_INTON] == 1);
+    memcpy(&buf, &v3, sizeof v3);                    /* a FUN3 project: ROOT 0..11 in the old way */
+    ok = proj_import(&q, &buf, (int)sizeof v3);
+    host_tracks_init();
+    song.g[G_INTON] = 0;
+    proj_apply(&q, 1);
+    bad += check("FUN3 -> applied: roots doubled (even), TRADITIONAL, bends 0", ok && song.g[G_INTON] == 1 && (trk[0].p[P_ROOT] & 1) == 0 && trk[0].step[3].cents == 0);
 
     printf("%s\n", bad ? "PROJECT FORMAT TEST FAILED" : "project format test passed");
     return bad != 0;

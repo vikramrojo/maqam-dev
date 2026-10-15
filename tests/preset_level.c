@@ -36,7 +36,7 @@ static uint8_t held[128];
 static uint32_t off_at[128];
 static void play(uint32_t note, uint32_t vel, uint32_t off)
 {
-    trk_note_on(&trk[0], note, vel);
+    trk_note_on(&trk[0], note, vel, 0);
     held[note] = 1;
     off_at[note] = off;
 }

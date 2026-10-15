@@ -69,6 +69,7 @@ enum {                          /* global parameters */
     G_DUST, G_DUCK, G_FILT,     /* the master bus: lo-fi / vinyl, the kick ducking the parts, the DJ filter (fx.c) */
     G_ROLL,                     /* note repeat rate (ARP + key, seq.c) */
     G_NEWPRJ,                   /* TOOLS > NEW: a new project (GO) */
+    G_INTON,                    /* maqam: intonation, EQUAL / TRADITIONAL (pitch24.h; saved in the project's rsv[0]) */
     G_COUNT
 };
 
@@ -84,6 +85,7 @@ typedef struct {
     int32_t pitch16, pitch_cur;  /* 1/16 semitone, with glide */
     int32_t gstep;               /* glide: 1/4096 semitone per control tick, 0 = RATE (GLIDE: the time an octave takes) */
     int32_t fine;                /* unison detune: phase increment * (1 + fine / 4096) */
+    int16_t bend_fine;           /* maqam: the note's cents below 1/16 semitone, 1/4096 (pitch24.h) */
     uint32_t ph[3];
     int32_t s[8];                /* engine state (filters, envs) */
     uint32_t age;
@@ -146,7 +148,7 @@ enum { ST_NOTE, ST_TIE, ST_REST };
 /* the dynamics of a note or a drum hit (2 bits each in the steps): played without velocity
  * (OCT- / OCT+ held on the drum track, the step page) or from a MIDI velocity */
 enum { LV_NORM, LV_GHOST, LV_SOFT, LV_HARD };
-typedef struct {                 /* a step of a synth part (10 bytes): up to 4 notes (POLY), time, accent, slide */
+typedef struct {                 /* a step of a synth part (11 bytes): up to 4 notes (POLY), time, accent, slide */
     uint8_t note[4];
     uint8_t n;                   /* notes in use, 0 = empty */
     uint8_t time;                /* ST_NOTE / ST_TIE / ST_REST */
@@ -154,14 +156,16 @@ typedef struct {                 /* a step of a synth part (10 bytes): up to 4 n
     uint8_t vel;
     uint8_t lvl;                 /* 2 bits per note (note k: bits 2k..2k+1): LV_* */
     uint8_t rat;                 /* 2 bits per note: the hits it plays in its step - 1 (ratchet x1..x4) */
+    int8_t cents;                /* maqam: the step's bend, -63..+63 cents, for every note (a note byte's bit 7: +50 c) */
 } step_t;
 #define DRUM_LANES 16            /* the drum track: 16 sounds, one per white key (drums.c LANE_*) */
-typedef struct {                 /* a step of the drum track (10 bytes, the size of a step_t) */
+typedef struct {                 /* a step of the drum track (11 bytes, the size of a step_t) */
     uint8_t on[2];               /* bit per lane */
     uint8_t lvl[4];              /* 2 bits per lane (lane k: byte k / 4, bits 2 (k % 4)..): LV_* */
     uint8_t rat[4];              /* 2 bits per lane: ratchet */
+    uint8_t rsv;                 /* maqam: keeps the size of a step_t */
 } dstep_t;
-_Static_assert(sizeof(step_t) == 10 && sizeof(dstep_t) == 10, "a step is 10 bytes on every track");
+_Static_assert(sizeof(step_t) == 11 && sizeof(dstep_t) == 11, "a step is 11 bytes on every track");   /* maqam: was 10 */
 
 typedef struct track {
     int16_t p[P_COUNT];
@@ -214,6 +218,7 @@ typedef struct track {
     uint32_t pass;               /* loops played since PLAY (a recording pass: one undo) */
     /* mono */
     uint8_t mono_stack[8];
+    int8_t mono_cents[8];        /* maqam: the step bend of each held note (a fallback to it keeps its bend) */
     uint8_t nmono;
     uint8_t mono_note;           /* note the MONO / LEGATO / UNISON voice(s) play, 0 = none */
     uint8_t rr;                  /* POLY ROTATE: next voice to try */
@@ -228,6 +233,7 @@ typedef struct track {
     /* engine switch (voice.c engine_block): the old engine's voices fade out, then it switches */
     uint8_t xf_on, xf;           /* fading; blocks of the fade still to render */
     int16_t pe_old[8];           /* P_E0..P_E7 of the sounding engine: the fade renders with these */
+    int8_t xp_cents[4];          /* maqam: their step bends */
     uint8_t xp_n, xp_note[4], xp_vel[4];   /* note-ons during the fade, played on the new engine */
 } track_t;
 

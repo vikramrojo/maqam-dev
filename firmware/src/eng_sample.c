@@ -138,13 +138,13 @@ static void sample_note_on(track_t *t, voice_t *v)
     if (si < SMP_NSETS) {
         const smp_set_t *set = &SMP_SETS[si];
         for (i = 0; i < set->nz; i++)
-            if (v->note >= SMP_ZONES[set->z0 + i].lo && v->note <= SMP_ZONES[set->z0 + i].hi)
+            if (note_semi(v->note) >= SMP_ZONES[set->z0 + i].lo && note_semi(v->note) <= SMP_ZONES[set->z0 + i].hi)   /* maqam: zones are semitones */
                 zi = set->z0 + i;
         v->s[4] = (int32_t)(zi == 0xFFFFu ? set->z0 : zi);
     } else {                                        /* user slot: silent if empty */
         uint32_t k = si - SMP_NSETS;
         for (i = 0; i < usr_nz[k]; i++)
-            if (v->note >= usr_zone[k][i].lo && v->note <= usr_zone[k][i].hi)
+            if (note_semi(v->note) >= usr_zone[k][i].lo && note_semi(v->note) <= usr_zone[k][i].hi)   /* maqam: zones are semitones */
                 zi = 0x8000u | k << 5 | i;
         v->s[4] = (int32_t)(zi == 0xFFFFu ? 0 : zi);
     }

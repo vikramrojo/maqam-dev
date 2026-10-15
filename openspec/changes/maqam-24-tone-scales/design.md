@@ -58,23 +58,50 @@ See proposal.md (Why) and the four specs for requirements. The current state tha
 - Engines that derive pitch from `m.pitch16` (sample `root16`, grain, formant) get it for free.
 - **Alternative:** a 4096-entry `PITCH_INC` table at quarter-tone resolution. That doubles a flash table, and the semitone table already covers it exactly (8 units of 1/16).
 
-### D3. A scale table generated as `scale_def_t`
+### D3. Scales are data: scale files → generator → `scale_def_t`
 ```c
-typedef struct { char code[6]; char name[9]; uint8_t set; uint32_t asc, desc; int8_t tune[24]; } scale_def_t;
+typedef struct { char code[6]; char name[9]; uint8_t set, home; uint32_t asc, desc; int8_t tune[24]; } scale_def_t;
 ```
-- A new `tools/gen_scales.py` (standard library only) writes `build/gen/scales.h` from human-readable sources:
-  - Turkish: comma steps.
-  - Indian: swara strings plus just-intonation ratios.
-  - Arabic: quarter-tone degrees.
-  - Western: the existing 12-bit masks, spread to 24 bits.
-- `tools/build.py` calls it next to `gen_tables.py`. The script also asserts: no two tune values in one slot, 5..12 degrees, degree 0 in both masks, unique codes of ≤5 characters, and the frozen order of indices.
-- The expected output is listed in the appendix below, so a reviewer can check it without running the script.
+`home` is the traditional tonic as a quarter-tone pitch class (0..23). It is used for display only (D15).
+
+**Source files.** Each set has a file: `scales/west.txt`, `turk.txt`, `arab.txt`, `india.txt`. Every pitch is written from the tonic in **cents** (with a decimal point) or as a **ratio**. That is the value syntax of Scala `.scl` files, so a value can be copied from any `.scl` file.
+```
+# scales/arab.txt — source: al-Ṣabbāgh 1954 (ratios from rāst; see appendix)
+scale RAST  "Rast"   home C
+  up    1/1 9/8 102/83 4/3 3/2 27/16 400/217
+  down  1/1 9/8 102/83 4/3 3/2 27/16 883/490
+
+# scales/west.txt
+scale MAJ   "Major"  home C
+  up    0. 200. 400. 500. 700. 900. 1100.
+```
+- Turkish rows are written as Pythagorean ratios: the Arel-Ezgi-Uzdilek intervals (bakiye 256/243, küçük mücennep 2187/2048, büyük mücennep 65536/59049, tanini 9/8) multiplied from the tonic. Turkish theory names them by their size in commas (4, 5, 8, 9).
+- Indian rows are written as just-intonation ratios.
+- Western rows are written as plain equal-tempered cents.
+
+**`tools/gen_scales.py`** (standard library only) handles every scale the same way:
+1. Convert each value to cents relative to the tonic.
+2. Round it to the nearest 50 c, which sets that bit in the `asc` or `desc` mask.
+3. Store the rest as `tune[slot]`.
+
+It then checks:
+- no two different offsets share a slot;
+- no value lies exactly halfway between two steps (offsets are then at most ±25 c by construction; the ±63 c int8 budget leaves room for step bends);
+- each form has 5..12 degrees, with degree 0 in both masks;
+- codes are unique and at most 5 characters;
+- indices are append-only: the shipped codes keep their positions from a frozen list in the generator, whatever the line order in the files, and any new scale is numbered after them;
+
+It writes `build/gen/scales.h`, and `tools/build.py` runs it next to `gen_tables.py`.
+
+**One format for every set.** Adding a scale, a raga or a `.scl` tuning is a data edit, with no firmware source change and no new generator code. The appendix lists the expected output, so a reviewer can check it without running the script.
+
 - **Alternatives:**
+  - Separate input styles per set (quarter-tone degrees, comma steps, swara strings), as first planned. That was harder to learn and review, and needed new code for every tradition.
   - Hand-written C arrays: masks and cents computed by hand can't be reviewed.
-  - pytheory at build time: rejected. Its `MAQAM_RATIOS` are broken, its Arabic sets are inconsistent, it has no descending forms, and it pulls in scipy and sounddevice.
+  - Importing a library's data at build time (pytheory, DiArMaqAr): rejected. See D16 for licences and data quality.
 
 ### D4. Intonation is applied at play time, not stored
-`tune[(p24 - root) mod 24]` is looked up at note-on from the track's current scale and root.
+`tune[(p24 - root) mod 24]` is looked up at note-on from the track's current scale and root. It is used only when the global intonation setting is TRADITIONAL (D14).
 
 - **Why:** it is per note (it works inside chords where the step bend is shared), it costs nothing in projects, and retuning a table changes old material consistently.
 - **Trade-off:** changing the scale after recording retunes notes that happen to fall on degrees of the new scale. That is acceptable, and arguably desired: the scale is the tuning context.
@@ -85,6 +112,8 @@ typedef struct { char code[6]; char name[9]; uint8_t set; uint32_t asc, desc; in
 - Comparing key indices, not output notes, avoids a circular dependency: which note plays depends on which mask is used.
 - The result is baked into the note at key time, so playback, arp and MIDI never need direction state.
 - **Alternative:** deciding at playback from the step order. That breaks with random arp orders and adds sequencer state.
+
+- **When the two forms have different lengths** (Asavari 5 up / 7 down, Yaman and Khamaj 6 / 7), the WHITE and chord layout comes from the form with more degrees, so a key never moves to another degree when the direction changes. A degree missing in the direction played gives that direction's nearest degree, the lower one on a tie. So Asavari on C going up plays C D D F G A♭ A♭ C on C4..C5, and going down C D E♭ F G A♭ B♭ C. The repeated notes are the degrees the ascending form leaves out. Found in code review, and covered by `scale_test`.
 
 ### D6. SNAP rounds down from `2*semi + 1`
 For even masks (WEST), `floor` into the mask from `2s+1` gives the same result as from `2s`. That is the compatibility guarantee, and `scale_test.c` EXPECTED proves it. For maqamat, both the ♭ key and the ♮ key reach the half-flat between them, which matches how players think of "the E of Rast".
@@ -103,7 +132,7 @@ For even masks (WEST), `floor` into the mask from `2s+1` gives the same result a
 
 - In the SCL layer, EN_PRESET (currently drained) cycles the set: it finds the first index with `set == next`.
 - KNOB2 moves to the next or previous index with the same set, wrapping.
-- **Why:** there are no new `P_*` / `G_*` values, so no parameter-count migration (`core.h:53-55`) and no web-mock param change beyond the list.
+- **Why:** there is no new `P_*` value, so no per-track parameter migration (`core.h:53-55`). The only new saved value is the global intonation setting (D14).
 
 ### D9. Root in quarter tones
 `P_ROOT` max becomes 23, and `F_NOTE` formats from a 24-entry name table.
@@ -118,10 +147,17 @@ For even masks (WEST), `floor` into the mask from `2s+1` gives the same result a
 - `proj_apply` drops `note &= 127` and clamps cents to ±63.
 - Size check: +4 tracks × 64 steps = +256 B. That is about 3368 B against the ~3668 B `.noinit` limit and 3840 B `ST_PAYLOAD_MAX`. Both asserts stay.
 
+### D10a. Where the CENT control lives
+The STEP page has no free knob, so the bend is edited on a second step page, **STEP 2** (tap SEQ again): KNOB 1 STEP, KNOB 2 CENT (±63, one cent per detent). NOTE on the first page keeps Q when it moves by semitones. With OCT− / OCT+ held, it moves by quarter tones, and that counts as a modifier use, so the octave does not change on release. Step tiles append the bend (`E♭4−5c`), dropping the `c` when the label would be longer than 6 characters.
+
 ### D11. Display glyphs
 - Two glyphs are added to the `gfx.c` font: a reversed flat (half-flat) and a half-sharp (‡-like).
 - `N_NOTE24[24]` uses them on screen. An ASCII form (`d` / `+`) is used by the web editor and in logs.
 - A step tile with a non-zero bend appends `±Nc` when there is room. Otherwise a dot marks it.
+- **Spelling rule (decided).** Every quarter tone is named from its **nearest natural note**: a half-flat if it lies below that natural, a half-sharp if it lies above. A quarter-tone sign is never stacked on ♯ or ♭. The 24 names are C C+ C# Dd D D+ D# Ed E Fd F F+ F# Gd G G+ G# Ad A A+ A# Bd B Cd: 7 half-flats and 5 half-sharps. The firmware (`N_NOTE24` / `N_NOTE24G`) and the editor (`NOTE_NAMES24`) share this table.
+  - **Rejected: half-flats only** (the Maqamusic convention). Five positions (C+, D+, F+, G+, A+) would then need double accidentals such as C♯-half-flat.
+  - **Rejected: spelling by scale.** It is more idiomatic, but the same pitch would get different names in different scales, and it is a larger change.
+  - In practice, the 12 ARAB maqamat on their home roots use only half-flats. Half-sharps appear only after transposing to an unusual root, or with OCT+.
 
 ### D12. Editor protocol
 - STEP_GET / SET and TRACK_STEP append a `cents` byte (7-bit SysEx encoded with an offset of +64). Note bytes already travel as 7-bit values, so Q is sent as a separate 4-bit field: one bit per note.
@@ -152,12 +188,48 @@ This fork keeps merging upstream SLOOP releases while the firmware matures. The 
 
 **Alternative: develop on a long-lived branch and merge once at the end.** Rejected, because the conflicts would compound across six hot files and the format code.
 
+### D14. EQUAL / TRADITIONAL intonation switch
+- **The setting.** A new global, `G_INTON` = {EQUAL, TRADITIONAL}, appended to the `G_*` list and saved in the project. The `FUN5` importer and new projects default to TRADITIONAL.
+- **Effect.** At note-on, the offset added is `G_INTON ? tune[slot] : 0` (D4). Step cent bends always apply.
+- **Control.** While SCL is held, the ALGORITHM encoder toggles it. That encoder is unused in layers today (`ui_input.c:784`). The SCL screen subtitle shows `equal` or `trad`.
+- **Why one switch, not profiles.** The goal is to introduce microtonality: hearing the same scale on the grid and in its traditional tuning teaches more than a menu of historical systems. Profiles stay possible later as more `tune[]` columns (see Future work).
+- **Western scales** have all-zero offsets, so they are unaffected and the golden renders hold in both modes.
+
+### D15. Any scale on any root; "home" is a hint
+- Selecting a scale never writes `P_ROOT`.
+- Because `tune[]` is relative to the root, every scale keeps its intervals and intonation on all 24 roots. This is more permissive than an archive like DiArMaqAr, which only allows transpositions a historical tuning contains.
+- The SCL screen shows `home: <note>` for non-WEST scales from `scale_def_t.home`, so players can find the traditional tonic without being held to it.
+- **Rejected: auto-setting the root to the traditional tonic.** It surprises players and works against the project's aim.
+
+### D16. Sources and licences
+Values are musical facts typed from primary sources, with the source noted in each scale file. No third-party code or data file is copied.
+
+| Source | Licence | Used for |
+|---|---|---|
+| Arel-Ezgi-Uzdilek system (Pythagorean ratios, named in 53-comma steps) | standard theory | TURK ratios |
+| al-Ṣabbāgh, 1954 (24-tone ratios) | historical publication | ARAB intonation |
+| Just-intonation swara ratios | standard theory | INDIA intonation |
+| maqamworld.com, Touma *The Music of the Arabs* | cited by Maqamusic | ARAB degree structure |
+| DiArMaqAr (AUB Music Intelligence Lab) | CC BY-NC-SA 4.0, not GPL-compatible | **cross-check only**: confirmed our ascending/descending forms and the Hijaz split, and supplied the Suznak and Huzam descending forms; al-Ṣabbāgh values were checked against its API |
+| Maqamusic | GPL-2.0-only, not GPL-3.0-compatible | cross-check only: matches 11 of 12 ARAB rows. It simplifies Hijaz to B♭ both ways |
+| makam_studio | no licence | cross-check only: its research docs confirm the Rast, Hüseynî and Nihavend descending forms. Its coded presets have comma errors and were not used |
+| pytheory | MIT | early reference. Its maqam tables are inconsistent and were not used |
+
+A dev-time script, not part of the build, may query DiArMaqAr's public API to re-check the ARAB offsets after edits.
+
+## Future work (not in this change)
+- **Tuning profiles.** More `tune[]` columns selected by the intonation setting: Cairo 1929 (Egyptian, measured), Mukhtār 1944 and Meshshāqa 1899. Every one measured stays within ±27 c.
+- **Scala `.scl` / `.kbm` import and export** in the emulator and the web editor. The scale-file format already uses Scala value syntax.
+- **More sets.** An ARAB2 set (Mahur, Husseini, Bayati Shuri, Iraq, Bastanikar, Saba Zamzam, Athar Kurd, Nayruz, Awj Ara, Lami, Shawq Afza) would use the 12 indices left under the editor's 64-name cap.
+- **Swapping the upper jins live.** Keep the lower jins and cycle the upper one, with modulation suggestions as in Maqamusic.
+- **Microtonal MIDI out** through pitch bend per channel: `bend = round(c/200 * 8191) + 8192`, where c is the offset in cents from the nearest semitone, for a ±2-semitone range.
+
 ## Risks / Trade-offs
 
 - **[Risk] A missed `& 127` somewhere silently drops quarter tones.** → Grep-driven audit task, plus a host test that runs the Q flag through key → record → step → play → arp → user preset.
 - **[Risk] The size of the `FUN5` project breaks the `.noinit` assert.** → Compute it from `sizeof` in `project_test.c` before merging. Fallback: pack Q differently (no change) or reduce `rsv`.
 - **[Risk] Users' muscle memory for OCT− / OCT+ (press vs release).** → Release is near-immediate. Document it in SLOOP.md. Drum-track behavior is unchanged.
-- **[Risk] The musicology of the tables (descending forms, AEU commas, JI swaras) is wrong in places.** → The generator sources are readable lists. Ask a practitioner to review the 36 non-Western rows before release. Fixes are data-only.
+- **[Risk] The musicology of the tables (descending forms, AEU commas, al-Ṣabbāgh ratios, JI swaras) is wrong in places.** → The scale files are readable and cite their sources. Three independent references were cross-checked (D16). Before release, check the al-Ṣabbāgh ratios against the printed source and ask a practitioner to review the 36 non-Western rows. Fixes are data-only.
 - **[Trade-off] Intonation follows the current scale, not the recorded one.** → Documented; consistent with D4.
 - **[Trade-off] MIDI out loses quarter tones.** → Explicitly out of scope. Notes still send correctly at their semitone.
 - **[Risk] Upstream SLOOP merges conflict in the hot files or the project format.** → D13: new logic in `pitch24.h`, generated data, `maqam:`-labelled hooks, a merge before each task group, and format code kept in one block.
@@ -178,37 +250,39 @@ This fork keeps merging upstream SLOOP releases while the firmware matures. The 
 
 Masks (24-bit masks with bit n = n quarter tones above the root; `asc/desc` shown only where the two differ):
 
-| ARAB (tune 0) | asc | desc |
-|---|---|---|
-| RAST | 0x244491 | 0x144491 (B♭ down) |
-| BAYAT | 0x114449 | |
-| SABA | 0x114149 | |
-| SIKAH | 0x224889 | 0x222889 |
-| HIJAZ | 0x124505 | 0x114505 |
-| NAHAW | 0x414451 | 0x114451 |
-| KURD | 0x114445 | |
-| AJAM | 0x444511 | |
-| NIKRZ | 0x145051 | |
-| HJKAR | 0x414505 | |
-| SUZNK | 0x414491 | |
-| HUZAM | 0x228289 | |
-
-| TURK (53-comma) | asc | desc | tune (slot:cents, non-zero) |
+| ARAB (al-Ṣabbāgh 1954) | asc | desc | tune (slot:cents, non-zero; TRADITIONAL only) |
 |---|---|---|---|
-| T.RST Rast | 0x444511 | 0x144511 (Acem F down) | 4:+4 8:-15 10:-2 14:+2 18:+6 20:-4 22:-13 |
-| USSAK Uşşak | 0x114451 | | 4:-19 6:-6 10:-2 14:+2 16:-8 20:-4 |
-| HUSEY Hüseyni | 0x144451 | 0x114451 | 4:-19 6:-6 10:-2 14:+2 16:-8 18:-17 20:-4 |
-| KURDI Kürdi | 0x114445 | | 2:-9 6:-6 10:-2 14:+2 16:-8 20:-4 |
-| NIHAV Nihavend | 0x414451 | 0x114451 | 4:+4 6:-6 10:-2 14:+2 16:-8 20:-4 22:-13 |
-| HICAZ Hicaz | 0x144505 | 0x114505 | 2:+13 8:-15 10:-2 14:+2 16:-8 18:-17 20:-4 |
-| HCKAR Hicazkar | 0x414505 | | 2:+13 8:-15 10:-2 14:+2 16:+15 22:-13 |
-| SUZIN Suzinak | 0x414511 | | 4:+4 8:-15 10:-2 14:+2 16:+15 22:-13 |
-| KARCI Karcığar | 0x141451 | | 4:-19 6:-6 10:-2 12:+11 18:-17 20:-4 |
-| T.SBA Saba | 0x114151 | | 4:-19 6:-6 8:-15 14:+2 16:-8 20:-4 |
-| SEGAH Segah | 0x114445 | | 2:+13 6:+17 10:+21 14:+2 16:+15 20:+19 |
-| HUZZM Hüzzam | 0x114245 | | 2:+13 6:+17 9:-20 14:+2 16:+15 20:+19 |
+| RAST | 0x244491 | 0x144491 (B♭ down) | 4:+4 7:+7 10:-2 14:+2 18:+6 20:+20 21:+9 |
+| BAYAT | 0x114449 | | 3:+3 6:-6 10:-2 14:+2 16:+16 20:-4 |
+| SABA | 0x114149 | | 3:+3 6:-6 8:-14 14:+2 16:+16 20:-4 |
+| SIKAH | 0x224889 | 0x222889 | 3:-9 7:-5 11:-1 13:+13 14:+2 17:-7 21:-3 |
+| HIJAZ | 0x124505 | 0x114505 | 2:+12 8:-14 10:-2 14:+2 16:+16 17:+5 20:-4 |
+| NAHAW | 0x414451 | 0x114451 | 4:+4 6:+16 10:-2 14:+2 16:+16 20:+20 22:-12 |
+| KURD | 0x114445 | | 2:+12 6:-6 10:-2 14:+2 16:+16 20:-4 |
+| AJAM | 0x444511 | | 4:-20 8:-16 10:-4 14:-22 18:-18 22:-14 |
+| NIKRZ | 0x145051 | | 4:+4 6:+16 12:+12 14:+2 18:+6 20:+20 |
+| HJKAR | 0x414505 | | 2:+12 8:-14 10:-2 14:+2 16:+16 22:-12 |
+| SUZNK | 0x414491 | 0x144491 (A, B♭ down) | 4:+4 7:+7 10:-2 14:+2 16:+16 18:+6 20:+20 22:-12 |
+| HUZAM | 0x228289 | 0x222889 (A, B♭ down) | 3:-9 7:-5 9:+9 11:-1 13:+13 15:-19 17:-7 21:-3 |
 
-Comma steps used: Rast 9,8,5,9,9,8,5 (desc …9,4,9); Uşşak 8,5,9,9,4,9,9; Hüseyni 8,5,9,9,8,5,9 (desc = Uşşak); Kürdi 4,9,9,9,4,9,9; Nihavend 9,4,9,9,4,13,5 (desc …4,9,9); Hicaz 5,12,5,9,8,5,9 (desc …4,9,9); Hicazkar 5,12,5,9,5,12,5; Suzinak 9,8,5,9,5,12,5; Karcığar 8,5,9,5,12,5,9; Saba 8,5,4,14,4,9,9; Segah 5,9,9,8,5,9,8; Hüzzam 5,9,5,12,5,9,8. pytheory's Hüzzam row (5,9,8,5,9,8,9) is wrong (it has no Hicaz), so it was not used.
+al-Ṣabbāgh (1954) ratios from rāst used above: dūgāh 9/8, segāh 102/83, chahārgāh 4/3, nawā 3/2, ḥusaynī 27/16, awj 400/217, ʿajam 883/490, kurdī 6/5, ḥijāz 45/32, tīk ḥijāz 729/512, ḥiṣār 189/118, nīm māhūr 15/8, zīrgūleh 16/15, nīm būselīk 5/4. Offsets are taken relative to each maqam's own tonic: Bayati, Saba, Kurd and Hijaz from dūgāh, Sikah and Huzam from segāh, Ajam from ʿajam ʿushayrān. **Check these against the printed source before release** (Risks).
+
+| TURK (AEU, Pythagorean ratios) | asc | desc | tune (slot:cents, non-zero) |
+|---|---|---|---|
+| T.RST Rast | 0x444511 | 0x144511 (Acem F down) | 4:+4 8:-16 10:-2 14:+2 18:+6 20:-4 22:-14 |
+| USSAK Uşşak | 0x114451 | | 4:-20 6:-6 10:-2 14:+2 16:-8 20:-4 |
+| HUSEY Hüseyni | 0x144451 | 0x114451 | 4:-20 6:-6 10:-2 14:+2 16:-8 18:-18 20:-4 |
+| KURDI Kürdi | 0x114445 | | 2:-10 6:-6 10:-2 14:+2 16:-8 20:-4 |
+| NIHAV Nihavend | 0x414451 | 0x114451 | 4:+4 6:-6 10:-2 14:+2 16:-8 20:-4 22:-14 |
+| HICAZ Hicaz | 0x144505 | 0x114505 | 2:+14 8:-16 10:-2 14:+2 16:-8 18:-18 20:-4 |
+| HCKAR Hicazkar | 0x414505 | | 2:+14 8:-16 10:-2 14:+2 16:+16 22:-14 |
+| SUZIN Suzinak | 0x414511 | | 4:+4 8:-16 10:-2 14:+2 16:+16 22:-14 |
+| KARCI Karcığar | 0x141451 | | 4:-20 6:-6 10:-2 12:+12 18:-18 20:-4 |
+| T.SBA Saba | 0x114151 | | 4:-20 6:-6 8:-16 14:+2 16:-8 20:-4 |
+| SEGAH Segah | 0x114445 | | 2:+14 6:+18 10:+22 14:+2 16:+16 20:+20 |
+| HUZZM Hüzzam | 0x114245 | | 2:+14 6:+18 9:-19 14:+2 16:+16 20:+20 |
+
+Comma steps used (each step is a Pythagorean ratio: 4 = 256/243, 5 = 2187/2048, 8 = 65536/59049, 9 = 9/8, 12 = 4 + 8, 13 = 4 + 9 = 32/27, 14 = 5 + 9; every makam closes on exactly 2/1): Rast 9,8,5,9,9,8,5 (desc …9,4,9); Uşşak 8,5,9,9,4,9,9; Hüseyni 8,5,9,9,8,5,9 (desc = Uşşak); Kürdi 4,9,9,9,4,9,9; Nihavend 9,4,9,9,4,13,5 (desc …4,9,9); Hicaz 5,12,5,9,8,5,9 (desc …4,9,9); Hicazkar 5,12,5,9,5,12,5; Suzinak 9,8,5,9,5,12,5; Karcığar 8,5,9,5,12,5,9; Saba 8,5,4,14,4,9,9; Segah 5,9,9,8,5,9,8; Hüzzam 5,9,5,12,5,9,8. pytheory's Hüzzam row (5,9,8,5,9,8,9) is wrong (it has no Hicaz), so it was not used.
 
 | INDIA (JI tune) | aroha | avaroha | tune |
 |---|---|---|---|

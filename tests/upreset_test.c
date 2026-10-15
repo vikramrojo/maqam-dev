@@ -184,6 +184,31 @@ int main(void)
         up_pat_from(&r, st);
         bad += check("empty sequencer -> empty pattern", up_pat_empty(&r));
     }
+    {   /* maqam (5.5): B-half-flat in the pattern, at UP_VER 1: steps -> record -> bank -> record, and over UP_PUT */
+        step_t st[NSTEP];
+        up_rec_t q, back;
+        uint32_t m;
+        memset(st, 0, sizeof st);
+        for (i = 0; i < 16u; i++)
+            st[i].time = ST_REST;
+        st[0] = (step_t){{70u | 0x80u}, 1, ST_NOTE, 0, 100, 0, 0, 0};          /* B-half-flat (A#|Q = 70.5) */
+        st[1] = (step_t){{64}, 1, ST_NOTE, 0, 100, 0, 0, 0};
+        up_pat_from(&q, st);
+        bad += check("steps -> pattern keeps the quarter tone", q.note[0] == (70u | 0x80u) && q.note[1] == 64 && UP_VER == 1u);
+        m = up_qmask(q.note);
+        bad += check("the quarter-tone mask of the pattern", m == 1u);
+        n = put_frame(a, 7, 1, "Quarter", 3);
+        a[n++] = 1; a[n++] = 0; a[n++] = 0;                                   /* the mask: note 1 (index 0) */
+        i = 0;
+        {
+            uint32_t k0 = n - 3u - 32u;                                      /* the pattern: note, flags per step */
+            a[k0] = 70; a[k0 + 1] = 1;                                       /* step 1: A#4 (wire notes are 7 bits) */
+            a[k0 + 2] = 64; a[k0 + 3] = 1;
+        }
+        bad += check("UP_PUT with the mask: B-half-flat in the record", up_parse(a, n, &r, &slot) == 0 && r.note[0] == (70u | 0x80u) &&
+                                                                       r.note[1] == 64 && up_qmask(r.note) == 1u);
+        bad += check("UP_PUT without the mask (an older editor): the plain note", up_parse(a, n - 3u, &r, &slot) == 0 && r.note[0] == 70);
+    }
     printf("%s\n", bad ? "USER PRESET TEST FAILED" : "user preset test passed");
     return bad != 0;
 }

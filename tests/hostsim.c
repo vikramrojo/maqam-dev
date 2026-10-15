@@ -31,6 +31,7 @@ static struct { volatile uint32_t notes, buttons; } fm1_in;
 static void fm1_irq_off(void) {}                 /* (the host: one thread) */
 static void fm1_irq_on(void) {}
 #include "../firmware/src/core.h"
+#include "../firmware/src/pitch24.h"       /* maqam: 24-tone pitch core */
 #include "../firmware/src/engines.c"
 #include "../firmware/src/drums.c"
 #include "../firmware/src/params.c"
@@ -310,7 +311,7 @@ static double tracks_cost(const uint8_t parts[NPART][3], uint32_t *busy_max)
         }
         for (p = 0; p < NPART; p++)
             for (i = 0; i < parts[p][2]; i++)
-                trk_note_on(&trk[p], NOTES[i] + 12u * p, 100);
+                trk_note_on(&trk[p], NOTES[i] + 12u * p, 100, 0);
         for (k = 0; k < 2u * FS / CTL + nblk; k++) {   /* 2 s to settle (attacks), then measure */
             uint64_t t0;
             if ((k * CTL) % (FS / 8u) < CTL)          /* 16ths at 120 BPM */
@@ -380,12 +381,12 @@ static int steal_test(const char *dir)
         uint32_t ms = f * 1000u / FS, k0 = voice_kills;
         if (f == 0)
             for (i = 0; i < 7u; i++)
-                trk_note_on(&trk[0], N1[i], 90);
+                trk_note_on(&trk[0], N1[i], 90, 0);
         if (f == FS / 2u / CTL * CTL)
-            trk_note_on(&trk[1], 74, 90);          /* 8: the budget is full */
+            trk_note_on(&trk[1], 74, 90, 0);          /* 8: the budget is full */
         if (ms >= 1000u && ms % 500u == 0u && f % (FS / 2u) < CTL && ms < 3500u) {
             p = ms / 500u % 2u ? 1u : 2u;          /* parts 2, 3 in turn: each takes a voice */
-            trk_note_on(&trk[p], 76u + ms / 250u, 90);
+            trk_note_on(&trk[p], 76u + ms / 250u, 90, 0);
         }
         mix_block(o, CTL);
         if (voice_kills != k0 && nev < 6u)
@@ -467,7 +468,7 @@ static int xfade_test(const char *dir)
                 xfade_sine(t);                     /* silent since the switch before: the sine again at once */
             if (f == on[k])
                 for (i = 0; i < 3u; i++)
-                    trk_note_on(t, CH[i] - 2u * k, 100);
+                    trk_note_on(t, CH[i] - 2u * k, 100, 0);
         }
         if (f == 9u * B)
             for (i = 0; i < 3u; i++)
@@ -478,7 +479,7 @@ static int xfade_test(const char *dir)
                 t->p[P_DIST] = t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 0;
                 panic_req |= 1u;
             } else if (k == 3u && f == sw[k] + CTL) {
-                trk_note_on(t, 60, 100);           /* (c): a note during the fade */
+                trk_note_on(t, 60, 100, 0);           /* (c): a note during the fade */
             }
         if (f == sw[3] + FS / 50u / CTL * CTL) {
             uint32_t v;

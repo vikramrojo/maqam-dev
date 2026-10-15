@@ -35,7 +35,7 @@ const E = vm.runInNewContext(proto + `
 ;({ frame, unframe, parse, req, Link, parseWav, resample, normalize, rootFromName, buildSlot, makeMockDevice, CMD, SMP,
    CHOP, chopNovelty, chopHits, chopSnap, chopGrid, chopEqual, chopList, chopPick, chopFit, chopZones, wavFile, zipStore, crc32,
    UP, bank, capturePatch, auditionPatch, startWatch, libraryFile, readLibraryFile, paramKeys, patternFromSteps, stepsFromPattern, upName,
-   mixer, GM_DRUM, drumName, parseNotes, fmtValue, F, DRUM_LANES, LV_NAMES, emptyDrum,
+   mixer, GM_DRUM, drumName, parseNotes, parseNote, noteName, NOTE_NAMES24, fmtValue, F, DRUM_LANES, LV_NAMES, emptyDrum,
    backupCapture, backupRestore, backupObjects, b64enc, b64dec })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder });
 
@@ -71,10 +71,30 @@ async function editorMock() {
     ok(on.p[45] === 2 && on.p[46] === 7 && off.p[45] === 0 && off.p[46] === 1, "editor: a factory preset turns the SLICER off");
   }
   const scale = E.parse[E.CMD.DESC](await rq(E.req.desc(0, 26)));
-  const scaleNames = ["CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM", "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH"];
-  ok(scale.label === "SCL" && scale.max === 15 && eq(scale.names, scaleNames), "editor: all 16 scale names exposed");
-  const scaleSet = E.parse[E.CMD.SET](await rq(E.req.set(0, scale.id, 15)));
-  ok(scaleSet.value === 15, "editor: new scale selection is not clamped to the old range");
+  /* the 52 codes in index order == the frozen list of tools/gen_scales.py; P_SCALE (26) follows P_ROOT in core.h */
+  const frozen = /FROZEN = \(([\s\S]*?)\)\.split\(\)/.exec(readFileSync(join(HERE, "../tools/gen_scales.py"), "utf8"))[1]
+    .split("\n").map((l) => l.replace(/^\s*"|"\s*$/g, "")).join(" ").trim().split(/\s+/);
+  const ch = readFileSync(join(HERE, "../firmware/src/core.h"), "utf8");
+  const pEnum = ch.slice(ch.indexOf("P_LEVEL,"), ch.indexOf("P_COUNT")).replace(/\/\*[\s\S]*?\*\//g, "").split(",").map((x) => x.trim()).filter(Boolean);
+  ok(frozen.length === 52 && pEnum.indexOf("P_SCALE") === 26 && pEnum.indexOf("P_ROOT") === 25, "editor: P_SCALE is id 26 in core.h, 52 frozen scale codes");
+  const root = E.parse[E.CMD.DESC](await rq(E.req.desc(0, 25)));
+  ok(root.label === "ROOT" && root.max === 23 && E.fmtValue(root, 7)[0] === "Ed" && E.fmtValue(root, 23)[0] === "Cd"
+    && E.NOTE_NAMES24.length === 24, "editor: ROOT 0..23 with 24 names");
+  ok(scale.label === "SCL" && scale.max === 51 && eq(scale.names, frozen), "editor: all 52 scale names exposed");
+  const scaleSet = E.parse[E.CMD.SET](await rq(E.req.set(0, scale.id, 51)));
+  ok(scaleSet.value === 51, "editor: new scale selection is not clamped to the old range");
+  const inton = E.parse[E.CMD.DESC](await rq(E.req.desc(1, 32)));
+  ok(inton.label === "INTON" && eq(inton.names, ["EQUAL", "TRAD"]) && inton.def === 1, "editor: global INTON (G_INTON)");
+  /* note names: quarter tones as firmware N_NOTE24; value = semitone | 0x80 */
+  const pn = E.parseNote, nn = E.noteName;
+  ok(pn("Ed4") === (63 | 128) && nn(63 | 128) === "Ed4" && pn("F+3") === (53 | 128) && nn(53 | 128) === "F+3"
+    && pn("Cd5") === (71 | 128) && nn(71 | 128) === "Cd5" && pn("C#4") === 61 && nn(61) === "C#4" && pn("Bb2") === 46
+    && pn("60") === 60 && pn("KICK") === 36 && nn(60) === "C4" && pn("Dd4") === (61 | 128) && pn("D#4") === 63,
+    "editor: quarter-tone note names (Ed4, F+3, Cd5) and plain names unchanged");
+  let rt = true;
+  for (let n = 0; n < 256; n++) if ((n & 127) < 127 || !(n & 128)) rt = rt && pn(nn(n)) === n;
+  ok(rt && pn("C#+4") === null && pn("Bbd4") === null && pn("Ed") === null && pn("G9+") === null,
+    "editor: noteName/parseNote round trip with Q; double accidentals rejected");
   const dump = E.parse[E.CMD.DUMP](await rq(E.req.dump()), info);
   ok(dump.p.length === info.pcount && dump.g.length === info.gcount, "editor: DUMP");
   const set = E.parse[E.CMD.SET](await rq(E.req.set(0, 3, 500)));
@@ -445,7 +465,7 @@ async function editorBackup() {
   const C = E.CMD;
   const { rq, done } = attachMock({});
   const info = E.parse[C.INFO](await rq(E.req.info()));
-  ok(info.proto === 6, "backup: INFO protocol v6");
+  ok(info.proto === 7, "backup: INFO protocol v7 (backup came in v6)");
   const ec = readFileSync(join(HERE, "../firmware/src/editor.c"), "utf8");
   ok(/ED_BK_IDS\[\] = \{0, 1, 2, 3, 4, 5, 6, 7, 32, 33, 34\}/.test(ec), "backup: the object ids == editor.c ED_BK_IDS");
   await rq(E.req.upStore(3, "BACKUP ME"));
@@ -483,14 +503,50 @@ async function editorV5() {
   const C = E.CMD;
   const { m, rq, ev, done } = attachMock({ watchMs: 1000 });
   const info = E.parse[C.INFO](await rq(E.req.info()));
-  ok(info.proto === 6 && /SLOOP/.test(info.version) && info.pcount === 58 && info.gcount === 32 && info.pe0 === 50, "v5/v6: INFO ends with the protocol version (6: backup)");
+  ok(info.proto === 7 && /SLOOP/.test(info.version) && info.pcount === 58 && info.gcount === 33 && info.pe0 === 50, "v5/v7: INFO ends with the protocol version (7: quarter-tone steps)");
+  /* v7: a step with E-half-flat 4 and +7 c: wire bytes exactly as EDITOR_PROTOCOL.md, all 7 bit */
+  {
+    const Ed4 = E.parseNote("Ed4"), F3 = E.parseNote("F+3");
+    const sreq = E.req.stepSet(2, { n: 2, notes: [Ed4, F3, 0, 0], time: 0, flags: 0, vel: 100, v7: true, cents: 7 });
+    ok(sreq[1].length === 14 && sreq[1].every((x) => x >= 0 && x < 128) && sreq[1][2] === 63 && sreq[1][3] === 53
+      && sreq[1][12] === 3 && sreq[1][13] === 71, "v7: STEP_SET bytes: semitones, qbits 0b0011, cents + 64 = 71");
+    const raw = await rq(sreq);
+    const got = E.parse[C.STEP_SET](raw), again = E.parse[C.STEP_GET](await rq(E.req.stepGet(2)));
+    ok(raw.length === 14 && raw.every((x) => x < 128) && raw[12] === 3 && raw[13] === 71 && got.notes[0] === Ed4 && E.noteName(got.notes[0]) === "Ed4"
+      && again.notes[1] === F3 && again.cents === 7 && again.v7, "v7: STEP_GET returns Ed4 / F+3 and +7 c");
+    const tr = E.parse[C.TRACK_STEP](await rq(E.req.trackStep(1, 4, { n: 1, notes: [Ed4, 0, 0, 0], time: 0, flags: 0, vel: 90, v7: true, cents: -63 })));
+    ok(tr.track === 1 && tr.notes[0] === Ed4 && tr.cents === -63, "v7: TRACK_STEP carries Q and the bend");
+    /* a write without the v7 bytes keeps the bend and the Q of unchanged notes */
+    const keep = E.parse[C.STEP_SET](await rq(E.req.stepSet(2, { n: 2, notes: [63, 53, 0, 0], time: 0, flags: 1, vel: 100 })));
+    ok(keep.cents === 7 && keep.notes[0] === Ed4 && keep.notes[1] === F3 && keep.flags === 1, "v7: a short STEP_SET keeps bend and Q");
+    /* the drum track sends 0, 64 */
+    const dr = E.parse[C.TRACK_STEP](await rq(E.req.trackStep(3, 0)));
+    ok(dr.track === 3 && dr.cents === 0 && dr.notes.every((n) => n < 128), "v7: drum TRACK_STEP: qbits 0, cents 64");
+    const upq = { engine: 0, name: "QTEST", p: new Array(58).fill(0), pattern: Array.from({ length: 16 }, (_, i) => (i === 0 ? [Ed4, 0] : i === 15 ? [F3, 1] : [0, 0])) };
+    const qm = E.req.upPut(5, upq)[1];
+    ok(qm.every((x) => x < 128) && qm.slice(-3).join() === "1,0,2", "v7: UP_PUT appends the quarter-tone mask (bits 0 and 15)");
+    await rq(E.req.upPut(5, upq), { timeout: 4000, retries: 0 });
+    const ug = E.parse[C.UP_GET](await rq(E.req.upGet(5)), info);
+    ok(ug.pattern[0][0] === Ed4 && ug.pattern[15][0] === F3 && ug.pattern[1][0] === 0, "v7: UP_GET returns the pattern's quarter tones");
+  }
+  /* a protocol-6 device: no v7 bytes, no bend column */
+  {
+    const o6 = attachMock({ v6: true });
+    const i6 = E.parse[C.INFO](await o6.rq(E.req.info()));
+    const s6 = await o6.rq(E.req.stepSet(2, { n: 1, notes: [64, 0, 0, 0], time: 0, flags: 0, vel: 100 }));
+    const s6b = E.req.stepSet(2, { n: 1, notes: [64 | 128, 0, 0, 0], time: 0, flags: 0, vel: 100 });
+    const g6 = E.parse[C.STEP_GET](s6);
+    ok(i6.proto === 6 && s6.length === 12 && g6.cents === undefined && !g6.v7 && s6b[1].length === 9 && s6b[1][2] === 64,
+      "v7: protocol-6 device: short steps, no v7 bytes sent, no bend");
+    o6.done();
+  }
   /* the firmware says the same: ED_DRUM_STEP is command 33, INFO sends 5, P_CHORD / the master globals as the mock has them */
   const ec = readFileSync(join(HERE, "../firmware/src/editor.c"), "utf8"), pc = readFileSync(join(HERE, "../firmware/src/params.c"), "utf8");
   const en = (/enum \{ ED_INFO = 1,([^}]*)\}/.exec(ec) || [])[1] || "";
   const names = ["ED_INFO", ...en.replace(/\/\*[^*]*\*\//g, "").split(",").map((x) => x.trim()).filter(Boolean)];
   ok(names.indexOf("ED_DRUM_STEP") + 1 === C.DRUM_STEP && names.indexOf("ED_TRACK_CHANGED") + 1 === C.TRACK_CHANGED
     && names.indexOf("ED_BK_LIST") + 1 === C.BK_LIST && names.indexOf("ED_BK_PUT") + 1 === C.BK_PUT
-    && /ed_b\(6\);\s*\/\* v6: the protocol version/.test(ec), "v5/v6: command numbers and INFO == editor.c");
+    && /ed_b\(7\);\s*\/\* v7: the protocol version/.test(ec), "v5/v7: command numbers and INFO == editor.c");
   const enumNames = (id) => (new RegExp(`${id}\\[\\] = \\{([^}]*)\\}`).exec(pc) || [])[1].split(",").map((x) => x.trim().replace(/"/g, ""));
   const chord = E.parse[C.DESC](await rq(E.req.desc(0, 49)));
   const gd = [];

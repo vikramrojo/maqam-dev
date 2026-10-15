@@ -75,12 +75,10 @@ static uint32_t keys_sounding(const track_t *t)
 
 static uint32_t scale_keys(uint32_t root_only)   /* SCL: the keys in the scale (or its roots only) */
 {
-    uint32_t i, m = 0, root = (uint32_t)trk[0].p[P_ROOT] % 12u, mask = SCALE_MASK[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)];
-    for (i = 0; i < 27u; i++) {
-        uint32_t d = (53u + i - root + 120u) % 12u;
-        if ((mask >> d) & 1u && (!root_only || !d))
+    uint32_t i, m = 0;
+    for (i = 0; i < 27u; i++)                    /* maqam: a key is lit when its semitone or the quarter tone above is a degree */
+        if (key_in_scale(&trk[0], i, root_only))
             m |= 1u << i;
-    }
     return m;
 }
 
@@ -288,20 +286,31 @@ static void step_edit(uint32_t slot, int32_t steps)
             st->time = ST_NOTE;
             break;
         }
-        for (i = 0; i < st->n; i++)
-            st->note[i] = (uint8_t)clamp(st->note[i] + steps, 1, 127);
+        if (fm1_in.buttons & (dyn_bit[0] | dyn_bit[1])) {   /* maqam: OCT- / OCT+ held: by quarter tones */
+            for (i = 0; i < st->n; i++)
+                st->note[i] = (uint8_t)note_from_p24((uint32_t)clamp_p24((int32_t)note_p24(st->note[i]) + steps));
+            oct_use();                                    /* (the octave stays when they are let go) */
+        } else {
+            for (i = 0; i < st->n; i++)
+                st->note[i] = (uint8_t)note_shift(st->note[i], steps, 1);   /* maqam: by semitones, the quarter tone kept */
+        }
         st->time = ST_NOTE;
         last_note = st->note[0];
         break;
     case 2:
         st->time = (uint8_t)clamp((int32_t)st->time + (steps > 0 ? 1 : -1), ST_NOTE, ST_REST);
         break;
-    default: {                                            /* FLAG: - / ACC / SLD / A+S */
+    case 4:                                               /* maqam: CENT: the step's bend, -63..+63 cents */
+        st->cents = (int8_t)clamp((int32_t)st->cents + steps, -63, 63);
+        break;
+    case 3: {                                             /* FLAG: - / ACC / SLD / A+S */
         uint32_t f = (st->flags & SF_ACCENT ? 1u : 0u) | (st->flags & SF_SLIDE ? 2u : 0u);
         f = (uint32_t)clamp((int32_t)f + (steps > 0 ? 1 : -1), 0, 3);
         st->flags = (uint8_t)((st->flags & ~(SF_ACCENT | SF_SLIDE)) | (f & 1u ? SF_ACCENT : 0u) | (f & 2u ? SF_SLIDE : 0u));
         break;
     }
+    default:
+        break;
     }
 }
 
@@ -342,7 +351,7 @@ static void edit_param(uint32_t slot, int32_t steps)
     if (is_drum(TSEL) && !page_for_drum(pg))
         return;                                           /* "DRUM TRACK": nothing to edit here */
     if (pg->scope == SC_STEP) {
-        step_edit(slot, steps);
+        step_edit(id, steps);                             /* maqam: by the page's id (STEP 2: CENT) */
         return;
     }
     if (pg->scope == SC_TRK) {
@@ -457,6 +466,7 @@ static void seq_entry(uint32_t pressed)
             undo_mark(t, (undo_sess += 4u) | 3u);
             st->n = 0;
             st->lvl = st->rat = 0;
+            st->cents = 0;                              /* maqam: new notes, no bend left over */
             st->time = ST_NOTE;
         }
         if (t->p[P_VOICE]) {
@@ -767,6 +777,15 @@ static void ui_input(void)
         return;
     }
     layered = layers_input(notes, &pressed, home);
+    {   /* maqam: OCT- / OCT+ change the octave on release, unless a key was pressed meanwhile (pitch24.h oct_tick) */
+        uint32_t rs;
+        int32_t od = oct_tick((fm1_in.buttons & dyn_bit[0]) != 0u, (fm1_in.buttons & dyn_bit[1]) != 0u, notes,
+                              !layered && !ui.hold_kind && !is_drum(TSEL) && !on_song_page(), &rs);
+        if (rs)
+            song.octave = 0;
+        else if (od)
+            song.octave = (int8_t)clamp(song.octave + od, -3, 3);
+    }
     if (home_eat && !((fm1_in.buttons >> panel.btn[B_HOME]) & 1u)) {   /* (the HOME that unlocked: let go) */
         if (home == BT_TAP)
             home = BT_NONE;
@@ -781,8 +800,19 @@ static void ui_input(void)
             song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);
             ui.bpm_t = 40;
         }
-        panel_enc(EN_ALGO);                             /* (track and sound wait: no jump afterwards) */
-        panel_enc(EN_PRESET);
+        {
+            int32_t a = panel_enc(EN_ALGO);             /* (track and sound wait: no jump afterwards) */
+            if (a && ui.layer == LY_SCALE)              /* maqam: SCL held: ALGORITHM sets the intonation (D14) */
+                song.g[G_INTON] = a > 0;
+        }
+        {
+            int32_t ps = panel_enc(EN_PRESET);          /* maqam: SCL held: PRESETS picks the scale set (D8) */
+            if (ps && ui.layer == LY_SCALE) {
+                uint32_t i, v = scale_next_set((uint32_t)trk[0].p[P_SCALE], ps);
+                for (i = 0; i < NPART; i++)
+                    trk[i].p[P_SCALE] = (int16_t)v;
+            }
+        }
         if (ui.hold_kind)
             for (k = 0; k < 4u; k++)
                 panel_enc(EN_K1 + k);
@@ -827,13 +857,7 @@ static void ui_input(void)
             break;
         case B_OCTDN:
         case B_OCTUP: {
-            uint32_t both = (1u << panel.btn[B_OCTDN]) | (1u << panel.btn[B_OCTUP]);
-            if (is_drum(TSEL))
-                break;                                  /* the drum track: ghost / hard while held (seq.c) */
-            if ((fm1_in.buttons & both) == both)
-                song.octave = 0;
-            else
-                song.octave += b == B_OCTDN ? (song.octave > -3 ? -1 : 0) : (song.octave < 3 ? 1 : 0);
+            /* the drum track: ghost / hard while held (seq.c); maqam: the octave changes on release (oct_tick above) */
             break;
         }
         case B_ENV:

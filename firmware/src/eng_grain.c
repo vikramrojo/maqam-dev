@@ -350,7 +350,7 @@ static void grain_note_on(track_t *t, voice_t *v)
 {
     gr_part_t *P = &gr_p[gr_part(t)];
     uint32_t vi = (uint32_t)(v - t->v) % NVOICE, i;
-    v->s[0] = gr_find((uint32_t)t->p[P_E0] % SMP_NALL, v->note);
+    v->s[0] = gr_find((uint32_t)t->p[P_E0] % SMP_NALL, note_semi(v->note));   /* maqam: zones are semitones */
     v->s[1] = 0;                                    /* the first grain at once */
     if (!v->env) {                                  /* a fresh voice: no grains left from before */
         for (i = 0; i < GR_NG; i++)
@@ -372,7 +372,7 @@ static void grain_block(track_t *t)
         gr_reset(P, src, st);
         for (i = 0; i < NVOICE; i++)
             if (t->v[i].active)
-                t->v[i].s[0] = gr_find(src, t->v[i].note);
+                t->v[i].s[0] = gr_find(src, note_semi(t->v[i].note));   /* maqam: zones are semitones */
     }
     for (i = 0; i < GR_NG; i++)
         if (P->g[i].owner && !t->v[(P->g[i].owner - 1u) % NVOICE].active)

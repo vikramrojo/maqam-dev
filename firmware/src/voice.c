@@ -68,7 +68,7 @@ static uint32_t lowest_held(const track_t *t)           /* index of the lowest h
 {
     uint32_t i, low = NVOICE;
     for (i = 0; i < NVOICE; i++)
-        if (t->v[i].active && t->v[i].gate && (low == NVOICE || t->v[i].note < t->v[low].note))
+        if (t->v[i].active && t->v[i].gate && (low == NVOICE || note_p24(t->v[i].note) < note_p24(t->v[low].note)))   /* maqam: p24 order */
             low = i;
     return low;
 }
@@ -196,7 +196,7 @@ static voice_t *voice_alloc(track_t *t, uint32_t note)
     }
     if (t->p[P_ALLOC] || t->p[P_GLIDE]) {
         for (i = 0; i < np; i++) {
-            int32_t d = t->v[i].pitch_cur - (int32_t)note * 16;
+            int32_t d = t->v[i].pitch_cur - note_p16(note);   /* maqam: with the quarter tone */
             if (t->v[i].active)
                 continue;
             d = d < 0 ? -d : d;
@@ -218,7 +218,7 @@ static voice_t *voice_alloc(track_t *t, uint32_t note)
     if (best < np)
         return &t->v[best];
     for (i = 0; i < np; i++)                             /* the lowest held note is protected */
-        if (t->v[i].gate && (low == np || t->v[i].note < t->v[low].note))
+        if (t->v[i].gate && (low == np || note_p24(t->v[i].note) < note_p24(t->v[low].note)))   /* maqam: p24 order */
             low = i;
     for (i = 0; i < np; i++)                             /* oldest released (not one fading out for another part) */
         if (!t->v[i].gate && t->v[i].stage != 4u && (best == np || t->v[i].age < t->v[best].age))
@@ -258,7 +258,7 @@ static void glide_set(track_t *t, voice_t *v, int glide)
     }
 }
 
-static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int glide)
+static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int glide, int32_t cents)   /* maqam: cents */
 {
     const engine_t *e = ENGINES[t->engine];
     int sounding = v->active && v->stage != 0;
@@ -270,7 +270,7 @@ static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int
     v->active = 1;
     v->stage = 1;
     v->age = ++vage;
-    v->pitch16 = (int32_t)note * 16;
+    pitch24_set(v, note, cents);                        /* maqam: semi*16 + q*8 + cents (was note * 16) */
     glide_set(t, v, glide);
     v->penv = 32767;                                    /* the pitch envelope starts over (not on legato) */
     if (!sounding) {
@@ -305,7 +305,7 @@ static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int
 
 /* MONO / LEGATO / UNISON: one note on one voice (eight for UNISON, or the
  * engine's voice cap, spread by DETUNE over the same width) */
-static void mono_play(track_t *t, uint32_t note, uint32_t vel, int retrig, int glide)
+static void mono_play(track_t *t, uint32_t note, uint32_t vel, int retrig, int glide, int32_t cents)   /* maqam: cents */
 {
     uint32_t mode = (uint32_t)t->p[P_VOICE], nv = mode == V_UNISON ? trk_nvoice(t) : 1u, i;
     for (i = 0; i < nv; i++) {
@@ -319,7 +319,7 @@ static void mono_play(track_t *t, uint32_t note, uint32_t vel, int retrig, int g
             if ((!v->active || v->stage == 4u) && !voice_room(t, i > 0))
                 continue;                                   /* no room for this extra UNISON voice */
             /* level: about the same sum for 8 or 4 voices at random phases */
-            voice_start(t, v, note, nv >= NVOICE ? vel * 36u / 100u : nv > 1u ? vel / 2u : vel, glide);
+            voice_start(t, v, note, nv >= NVOICE ? vel * 36u / 100u : nv > 1u ? vel / 2u : vel, glide, cents);   /* maqam: cents */
             if (nv > 1u && i && !eng_sampled(ENGINES[t->engine]) && !was_sounding) {   /* random start phases: */
                 static uint32_t seed = 0x1234567u;          /* in phase they stack, evenly spread they cancel */
                 seed = seed * 1664525u + 1013904223u;
@@ -327,7 +327,7 @@ static void mono_play(track_t *t, uint32_t note, uint32_t vel, int retrig, int g
             }
         } else {                                            /* legato: new pitch, same envelope */
             v->note = (uint8_t)note;
-            v->pitch16 = (int32_t)note * 16;
+            pitch24_set(v, note, cents);                    /* maqam: was note * 16 */
             if (vel > v->vel && nv == 1u)
                 v->vel = (uint8_t)vel;
             glide_set(t, v, glide);
@@ -344,32 +344,45 @@ static uint32_t mono_pick(const track_t *t)
         return 0;
     n = t->mono_stack[t->nmono - 1u];
     for (i = 0; i < t->nmono; i++) {
-        if (t->p[P_PRIO] == 1 && t->mono_stack[i] < n)
+        if (t->p[P_PRIO] == 1 && note_p24(t->mono_stack[i]) < note_p24(n))   /* maqam: p24 order */
             n = t->mono_stack[i];
-        if (t->p[P_PRIO] == 2 && t->mono_stack[i] > n)
+        if (t->p[P_PRIO] == 2 && note_p24(t->mono_stack[i]) > note_p24(n))   /* maqam: p24 order */
             n = t->mono_stack[i];
     }
     return n;
 }
 
+static int32_t mono_bend(const track_t *t, uint32_t note)   /* maqam: the step bend of a held note */
+{
+    uint32_t j;
+    for (j = t->nmono; j-- > 0;)
+        if (t->mono_stack[j] == note)
+            return t->mono_cents[j];
+    return 0;
+}
 static void mono_remove(track_t *t, uint32_t note)
 {
     uint32_t j, k = 0;
     for (j = 0; j < t->nmono; j++)
-        if (t->mono_stack[j] != note)
+        if (t->mono_stack[j] != note) {
+            t->mono_cents[k] = t->mono_cents[j];        /* maqam: the bend goes with its note */
             t->mono_stack[k++] = t->mono_stack[j];
+        }
     t->nmono = (uint8_t)k;
 }
 
-static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
+static void trk_note_on(track_t *t, uint32_t note, uint32_t vel, int32_t cents)   /* maqam: cents (+-100) */
 {
     uint32_t any = 0, i, mode = (uint32_t)t->p[P_VOICE];
+    int32_t bend;
     if (trk_silent(t))
         return;                                         /* MUTE, or another track soloed */
     if (is_drum(t)) {                                   /* the drum track: GM drums (drums.c) */
         drum_on(note, vel);
         return;
     }
+    bend = cents;                                       /* maqam: the step bend alone (kept for fallbacks and the engine switch) */
+    cents = p24_cents(t, note, cents);                  /* maqam: + the scale's intonation (D4), clamped to +-100 */
     if (t->xf_on || t->eng_req != t->engine) {          /* engine switch under way: after the fade */
         for (i = 0; i < t->xp_n && t->xp_note[i] != note; i++)
             ;
@@ -378,6 +391,7 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
         i = i < t->xp_n ? i : t->xp_n - 1u;             /* (full: the last one is replaced) */
         t->xp_note[i] = (uint8_t)note;
         t->xp_vel[i] = (uint8_t)vel;
+        t->xp_cents[i] = (int8_t)(bend < -100 ? -100 : bend > 100 ? 100 : bend);   /* maqam */
         return;
     }
     for (i = 0; i < NVOICE; i++)
@@ -391,7 +405,7 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
         t->nmono = 0;                                   /* no stale mono stack after a mode change */
         t->mono_note = 0;
         v->fine = 0;
-        voice_start(t, v, note, vel, t->p[P_GLIDE] != 0);
+        voice_start(t, v, note, vel, t->p[P_GLIDE] != 0, cents);   /* maqam: cents */
         return;
     }
     {
@@ -399,14 +413,15 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
         mono_remove(t, note);
         if (t->nmono >= 8u)
             mono_remove(t, t->mono_stack[0]);
+        t->mono_cents[t->nmono] = (int8_t)(bend < -100 ? -100 : bend > 100 ? 100 : bend);   /* maqam: its step bend */
         t->mono_stack[t->nmono++] = (uint8_t)note;
         want = mono_pick(t);
         if (sounding && want == t->mono_note)
             return;                                     /* LOW / HIGH priority: this key does not win */
         if (mode == V_MONO)                             /* MONO: always retrigger, glide when GLIDE is set */
-            mono_play(t, want, vel, 1, t->p[P_GLIDE] != 0 || t->slide_glide);
+            mono_play(t, want, vel, 1, t->p[P_GLIDE] != 0 || t->slide_glide, want == note ? cents : p24_cents(t, want, mono_bend(t, want)));   /* maqam: cents */
         else                                            /* LEGATO / UNISON: glide only between held notes */
-            mono_play(t, want, vel, !sounding, sounding && (t->p[P_GLIDE] != 0 || t->slide_glide));
+            mono_play(t, want, vel, !sounding, sounding && (t->p[P_GLIDE] != 0 || t->slide_glide), want == note ? cents : p24_cents(t, want, mono_bend(t, want)));   /* maqam: cents */
     }
 }
 
@@ -417,6 +432,7 @@ static void trk_note_off(track_t *t, uint32_t note)
         return;                                         /* one-shots */
     for (i = 0; i < t->xp_n; i++)                       /* not sounding yet (engine switch): forget it */
         if (t->xp_note[i] != note) {
+            t->xp_cents[k] = t->xp_cents[i];   /* maqam */
             t->xp_note[k] = t->xp_note[i];
             t->xp_vel[k++] = t->xp_vel[i];
         }
@@ -428,7 +444,9 @@ static void trk_note_off(track_t *t, uint32_t note)
         if (t->mono_note == note) {
             uint32_t next = mono_pick(t);
             if (next) {                                 /* fall back to a held note, legato */
-                mono_play(t, next, t->v[0].vel, 0, t->p[P_GLIDE] != 0);
+                p24_plain = (uint8_t)p24_midi_get(t, next);   /* maqam: a held MIDI note stays plain 12-tone */
+                mono_play(t, next, t->v[0].vel, 0, t->p[P_GLIDE] != 0, p24_cents(t, next, mono_bend(t, next)));   /* maqam: its step bend and the intonation */
+                p24_plain = 0;
             } else {
                 for (i = 0; i < nv; i++)
                     if (t->v[i].gate) {
@@ -494,8 +512,11 @@ static void engine_block(track_t *t)
         {
             uint32_t n = t->xp_n;
             t->xp_n = 0;
-            for (i = 0; i < n; i++)
-                trk_note_on(t, t->xp_note[i], t->xp_vel[i]);
+            for (i = 0; i < n; i++) {
+                p24_plain = (uint8_t)p24_midi_get(t, t->xp_note[i]);   /* maqam: a held MIDI note stays plain 12-tone */
+                trk_note_on(t, t->xp_note[i], t->xp_vel[i], t->xp_cents[i]);   /* maqam: with their step bends */
+                p24_plain = 0;
+            }
         }
     }
     for (i = 0; i < 8u; i++)                            /* the engine's own values, for a later fade */
@@ -605,8 +626,8 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             m.pitch16 = clamp(pitch, 0, 2047);
             m.inc = PITCH_INC[m.pitch16];
             q = (q & 255) * 3792 >> 16;                 /* the fraction, as fine (1/16 st = 14.8) */
-            if (v->fine + tune_fine + q)                /* unison detune, fine tune and the fraction */
-                m.inc += (uint32_t)((int32_t)(m.inc >> 12) * (v->fine + tune_fine + q));
+            if (v->fine + tune_fine + q + v->bend_fine) /* unison detune, fine tune and the fraction (maqam: + the note's cents) */
+                m.inc += (uint32_t)((int32_t)(m.inc >> 12) * (v->fine + tune_fine + q + v->bend_fine));
         }
         m.cutoff = ((lfo * p[P_LD_FLT]) >> 7) + ((m.envq15 * p[P_ED_FLT]) >> 7);
         if (v->vel > 110)                               /* accent opens the filter with the env */

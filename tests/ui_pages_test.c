@@ -235,15 +235,230 @@ int main(int argc, char **argv)
     fm1_in.notes = 0; frame(); check(!roll[0].on, "key up: the roll ends");
     release(B_ARP);
 
+    /* ---- maqam: OCT- / OCT+ on a synth track: the octave on release, a quarter tone while held with a key */
+    song.sel = 0; go_home(); frame();
+    song.octave = 0;
+    trk[0].p[P_QUANT] = 0; trk[0].p[P_SCALE] = 0; trk[0].p[P_CHORD] = 0; trk[0].p[P_ROOT] = 0; trk[0].p[P_TRANS] = 0;
+    press(B_OCTUP);
+    check(song.octave == 0, "OCT+ pressed: the octave waits for the release");
+    release(B_OCTUP);
+    check(song.octave == 1, "OCT+ pressed and released alone: octave +1");
+    tap(B_OCTDN); tap(B_OCTDN); tap(B_OCTDN);
+    check(song.octave == -2, "OCT- x3: octave -2");
+    song.octave = 2;
+    press(B_OCTDN); press(B_OCTUP); frames(2);
+    check(song.octave == 0, "OCT- + OCT+ held: octave 0");
+    release(B_OCTUP); release(B_OCTDN);
+    check(song.octave == 0, "... and letting go changes nothing");
+    press(B_OCTDN);
+    check(kb_map(&trk[0], 11) == (63u | NOTE_Q) && kb_map(&trk[0], 7) == (59u | NOTE_Q), "CHR + OCT- held: the E key is E-half-flat (D#|Q), C is B+50");
+    key(11);
+    check(last_note == (63u | NOTE_Q), "CHR + OCT- + E: E-half-flat plays");
+    release(B_OCTDN);
+    check(song.octave == 0, "OCT- released after a key: the octave is unchanged");
+    press(B_OCTUP);
+    check(kb_map(&trk[0], 11) == (64u | NOTE_Q), "CHR + OCT+ held: the E key is E+50");
+    release(B_OCTUP);
+    check(song.octave == 1 && kb_map(&trk[0], 11) == 76u, "OCT+ alone: octave +1, the key is plain again");
+    song.octave = 0;
+    trk[0].p[P_QUANT] = 1; trk[0].p[P_SCALE] = 28;      /* ARAB Rast, SNAP: the modifier goes before the rounding */
+    press(B_OCTUP);
+    check(kb_map(&trk[0], 11) == 65u && kb_map(&trk[0], 10) == (63u | NOTE_Q), "SNAP Rast + OCT+: the E key reaches F, the D# key stays on E-half-flat (the modifier goes before the rounding)");
+    release(B_OCTUP);
+    song.octave = 0;
+    check(kb_map(&trk[0], 11) == (63u | NOTE_Q) && kb_map(&trk[0], 12) == 65u, "SNAP Rast: E is E-half-flat, F is F");
+    trk[0].p[P_QUANT] = 0; trk[0].p[P_SCALE] = 0;
+    song.sel = TRK_DRUM; go_home(); frame();
+    tap(B_OCTUP);
+    check(song.octave == 0, "the drum track: OCT+ alone changes no octave (ghost / hard)");
+    song.sel = 0; go_home(); frame();
+
+    /* ---- maqam (5.3, 6.1, 6.2): the step pages: NOTE keeps the quarter tone, OCT- / OCT+ nudge it, CENT; names */
+    {
+        char nb[12];
+        step_t *st;
+        song.sel = 0; go_home(); frame();
+        song.octave = 0;
+        steps_clear(&trk[0]);
+        st = &trk[0].step[0];
+        st->n = 1; st->note[0] = 63u | NOTE_Q; st->time = ST_NOTE; st->vel = 100;
+        note_name(nb, 63u | NOTE_Q);  check(!strcmp(nb, "E\xA4" "4"), "note_name: E-half-flat 4 is E, the half-flat glyph, 4");
+        note_name(nb, 64u);           check(!strcmp(nb, "E4"), "note_name: E4 unchanged");
+        note_name(nb, 61u);           check(!strcmp(nb, "C#4"), "note_name: C#4 unchanged");
+        note_name(nb, 65u | NOTE_Q);  check(!strcmp(nb, "F\xA6" "4"), "note_name: F#-half-flat (65|Q) is spelled F with the half-sharp glyph");
+        note_name(nb, 53u | NOTE_Q);  check(!strcmp(nb, "F\xA6" "3"), "note_name: F3 half-sharp: F, the half-sharp glyph, 3");
+        note_name(nb, 71u | NOTE_Q);  check(!strcmp(nb, "C\xA4" "5"), "note_name: B4 + 50 c is C5 half-flat");
+        open_family(FAM_SEQ); ui.cursor = 0; ui.force = 1; frame();
+        check(!strcmp(cur_page()->title, "STEP"), "the SEQ family opens on STEP");
+        ppm("page-step-q");
+        encs[panel.enc[EN_K2]] = 1; frame();
+        check(st->note[0] == (64u | NOTE_Q), "STEP NOTE +1 on E-half-flat: F, no: E+50 (the quarter tone is kept)");
+        step_edit(1, 1);
+        check(st->note[0] == (65u | NOTE_Q), "STEP NOTE: semitones keep the quarter tone: +2 st from E-half-flat = F#-half-flat");
+        step_edit(1, -2);
+        st->note[0] = 64;
+        press(B_OCTDN);
+        encs[panel.enc[EN_K2]] = -1; frame();
+        check(st->note[0] == (63u | NOTE_Q), "STEP NOTE with OCT- held, one detent down: E becomes E-half-flat");
+        encs[panel.enc[EN_K2]] = 1; frame(); encs[panel.enc[EN_K2]] = 1; frame();
+        check(st->note[0] == (64u | NOTE_Q), "... OCT- still held, two detents up: E+50 (a quarter tone a detent)");
+        release(B_OCTDN);
+        check(song.octave == 0, "OCT- turned with NOTE and let go: the octave is unchanged");
+        tap(B_OCTUP);
+        check(song.octave == 1, "OCT+ alone: the octave still moves on release");
+        song.octave = 0;
+        st->note[0] = 63u | NOTE_Q;
+        open_family(FAM_SEQ); ui.force = 1; frame();
+        check(!strcmp(cur_page()->title, "STEP 2"), "SEQ again: the STEP 2 page (CENT)");
+        encs[panel.enc[EN_K2]] = -1; frame();
+        check(st->cents < 0 && st->cents >= -63, "STEP 2 + CENT left: a negative bend");
+        step_edit(4, -100);
+        check(st->cents == -63, "CENT clamps at -63");
+        step_edit(4, 200);
+        check(st->cents == 63, "CENT clamps at +63");
+        st->cents = -5;
+        ui.force = 1; frame();
+        ppm("page-step-cent");
+        check(st->note[0] == (63u | NOTE_Q), "CENT leaves the note alone");
+        {   /* the SEQ layer's tile: "E, glyph, 4" and the bend */
+            step_t *s2 = &trk[0].step[1];
+            s2->n = 1; s2->note[0] = 64; s2->time = ST_NOTE; s2->vel = 100; s2->cents = 12;
+            open_family(FAM_SEQ); go_home(); frame();
+            press(B_SEQ); frames(12);
+            ppm("layer-steps-q");
+            release(B_SEQ); frames(3);
+        }
+        st->note[0] = 63u | NOTE_Q; st->cents = 0;
+        pattern_transpose(&trk[0], 1); pattern_transpose(&trk[0], 1);
+        check(st->note[0] == (65u | NOTE_Q) && trk[0].step[1].note[0] == 66, "pattern transpose +2 st: E-half-flat becomes F#-half-flat, plain notes move as before");
+        st->cents = 0; trk[0].step[1].cents = 0;
+        steps_clear(&trk[0]);
+        go_home(); frame();
+    }
+
+    /* ---- maqam review regressions: the SEQ layer's pen note keeps its quarter tone; a new entry drops the old bend */
+    {
+        step_t *st;
+        song.sel = 0; go_home(); frame();
+        song.octave = 0;
+        trk[0].p[P_QUANT] = 0; trk[0].p[P_SCALE] = 0; trk[0].p[P_CHORD] = 0; trk[0].p[P_ROOT] = 0; trk[0].p[P_TRANS] = 0;
+        steps_clear(&trk[0]);
+        pen_n = 1; pen_note[0] = 63u | NOTE_Q;
+        press(B_SEQ); frames(12);
+        encs[panel.enc[EN_K1]] = 1; frame();
+        check(pen_note[0] == (64u | NOTE_Q) && ui.step_held == 0, "SEQ layer KNOB 1: the pen note moves by a semitone and keeps its quarter tone (E-half-flat -> E+50)");
+        pen_note[0] = 127u | NOTE_Q;
+        encs[panel.enc[EN_K1]] = 3; frame();
+        check(pen_note[0] == (127u | NOTE_Q) && note_semi(pen_note[0]) * 1000 / 127 <= 1000, "SEQ layer KNOB 1: at the top the note stays 127 with its flag, the bar stays in range");
+        release(B_SEQ); frames(3);
+        pen_note[0] = 60; pen_n = 1;
+        st = &trk[0].step[0];
+        st->n = 1; st->note[0] = 70; st->time = ST_NOTE; st->vel = 100; st->cents = -40;
+        { uint32_t pi; for (pi = 0; pi < NPAGES; pi++) if (!strcmp(PAGES[pi].title, "STEP")) ui.page = (uint8_t)pi; ui.home = 0; page_entered(); }
+        ui.cursor = 0; ui.force = 1; frame();
+        check(song.seq_mode && cur_page()->scope == SC_STEP, "the STEP page is open for step entry");
+        key(11);
+        check(st->n == 1 && st->note[0] == 64 && st->cents == 0, "step entry over a step with -40 c: the new note has no bend");
+        st->cents = 0;
+        steps_clear(&trk[0]);
+        go_home(); frame();
+    }
+
     /* ---- SCL: the key of the song; GLO: mute, solo, tap */
     song.sel = 0; go_home(); frame();
     press(B_SCL); frames(10);
     key(9);                                           /* D4 */
-    check(trk[0].p[P_ROOT] == 2 && trk[1].p[P_ROOT] == 2 && trk[2].p[P_ROOT] == 2, "SCL + D: every part in D");
+    check(trk[0].p[P_ROOT] == 4 && trk[1].p[P_ROOT] == 4 && trk[2].p[P_ROOT] == 4, "SCL + D: every part in D");
     encs[panel.enc[EN_K1]] = 2; frame();
     check(trk[0].p[P_CHORD] == 2, "SCL + KNOB 1: chords (7TH) on the track");
+    {   /* maqam: SCL held + ALGORITHM: the intonation (EQUAL / TRADITIONAL), shown in the subtitle */
+        char sb[24];
+        check(song.g[G_INTON] == 1, "SCL: the intonation starts TRADITIONAL");
+        scl_sub(sb, sizeof sb, trk[0].p[P_ROOT], scale_index(&trk[0]));
+        check(!strcmp(sb, "D west chr trad"), "SCL subtitle: root, set, scale, 'trad'");
+        encs[panel.enc[EN_ALGO]] = -1; frame();
+        check(song.g[G_INTON] == 0, "SCL + ALGORITHM (left): EQUAL");
+        scl_sub(sb, sizeof sb, trk[0].p[P_ROOT], scale_index(&trk[0]));
+        check(!strcmp(sb, "D west chr equal"), "SCL subtitle: 'equal'");
+        ppm("layer-key-equal");
+        encs[panel.enc[EN_ALGO]] = 1; frame();
+        check(song.g[G_INTON] == 1, "SCL + ALGORITHM (right): TRADITIONAL");
+    }
+    {   /* maqam: SCL + OCT- / OCT+ + a key: a quarter-tone root; the keys light up as in the scale (task 3.7) */
+        press(B_OCTDN); key(11); release(B_OCTDN);
+        check(trk[0].p[P_ROOT] == 7 && trk[2].p[P_ROOT] == 7, "SCL + OCT- + E: the root is E-half-flat (7)");
+        press(B_OCTUP); key(7); release(B_OCTUP);
+        check(trk[0].p[P_ROOT] == 1, "SCL + OCT+ + C: the root is C-half-sharp (1)");
+        press(B_OCTDN); key(7); release(B_OCTDN);
+        check(trk[0].p[P_ROOT] == 23, "SCL + OCT- + C: the root is B-half-sharp (23: wraps)");
+        key(9);
+        check(trk[0].p[P_ROOT] == 4 && song.octave == 0, "SCL + D: the root is D again, the octave untouched");
+        trk[0].p[P_SCALE] = 28; trk[0].p[P_ROOT] = 0;      /* ARAB Rast on C */
+        check((scale_keys(0) & (1u << 11)) != 0 && (scale_keys(0) & (1u << 10)) != 0, "SCL, ARAB Rast on C: the E key (and D#) are lit: E-half-flat is above them");
+        trk[0].p[P_SCALE] = 1;
+        check((scale_keys(0) & (1u << 11)) != 0 && (scale_keys(0) & (1u << 10)) == 0, "SCL, WEST MAJ: E lit, D# not");
+        check(scale_keys(1) == (1u << 7) || scale_keys(1) == ((1u << 7) | (1u << 19)), "SCL: the root key");
+        trk[0].p[P_SCALE] = 0; trk[0].p[P_ROOT] = 4;
+    }
+    {   /* maqam: SCL + PRESETS: the scale sets; KNOB 2 wraps within the set (D8); the subtitle (task 4.2) */
+        char sb[24], hb[12];
+        uint32_t i, worst = 0, x0 = 4 + text_w(&FONT_L, "key") + 10, wr = 0, ws = 0, whome = 0;
+        trk[0].p[P_SCALE] = 1; trk[1].p[P_SCALE] = 1; trk[2].p[P_SCALE] = 1;
+        encs[panel.enc[EN_PRESET]] = 1; frame();
+        check(trk[0].p[P_SCALE] == 16 && trk[1].p[P_SCALE] == 16 && trk[2].p[P_SCALE] == 16, "SCL + PRESETS +1 from WEST MAJ: TURK's first scale (16)");
+        encs[panel.enc[EN_PRESET]] = -1; frame();
+        check(trk[0].p[P_SCALE] == 0, "SCL + PRESETS -1: WEST's first scale");
+        encs[panel.enc[EN_PRESET]] = -1; frame();
+        check(trk[0].p[P_SCALE] == 40, "SCL + PRESETS -1 again: it wraps to INDIA (40)");
+        encs[panel.enc[EN_PRESET]] = 1; frame(); encs[panel.enc[EN_PRESET]] = 1; frame(); encs[panel.enc[EN_PRESET]] = 1; frame();
+        check(trk[0].p[P_SCALE] == 28, "SCL + PRESETS x3: WEST, TURK, ARAB (28)");
+        trk[0].p[P_SCALE] = trk[1].p[P_SCALE] = trk[2].p[P_SCALE] = 39;
+        encs[panel.enc[EN_K2]] = 1; frame();
+        check(trk[0].p[P_SCALE] == 28 && trk[2].p[P_SCALE] == 28, "SCL + KNOB 2 +1 from the last ARAB scale: the first (28)");
+        encs[panel.enc[EN_K2]] = -1; frame();
+        check(trk[0].p[P_SCALE] == 39, "SCL + KNOB 2 -1: the last ARAB scale (39)");
+        encs[panel.enc[EN_K2]] = 4; frame();
+        encs[panel.enc[EN_K2]] = 4; frame();
+        check(trk[0].p[P_SCALE] == 35 && trk[0].p[P_ROOT] == 4, "SCL + KNOB 2: ARAB Ajam (35), the root unchanged");
+        trk[0].p[P_ROOT] = 0;                          /* Ajam on C: the home hint is B-flat, the root stays C */
+        scl_sub(sb, sizeof sb, trk[0].p[P_ROOT], scale_index(&trk[0]));
+        scl_home(hb, sizeof hb, scale_index(&trk[0]));
+        check(!strcmp(sb, "C arab ajam trad") && !strcmp(hb, "home Bb") && trk[0].p[P_ROOT] == 0, "SCL: ARAB Ajam on C shows 'home Bb', the root stays C");
+        scl_sub(sb, sizeof sb, 7, 31);
+        scl_home(hb, sizeof hb, 31);
+        check(!strcmp(sb, "E\xA4 arab sikah trad") && !strcmp(hb, "home E\xA4"), "SCL subtitle: 'E\xA4 arab sikah trad', home E\xA4");
+        scl_sub(sb, sizeof sb, 0, 1);
+        scl_home(hb, sizeof hb, 1);
+        check(!strcmp(sb, "C west maj trad") && !hb[0], "SCL subtitle: WEST: 'C west maj trad', no home hint");
+        for (i = 0; i < 24u * NSCALES * 2u; i++) {     /* the widest subtitle and hint against the 240 px screen */
+            uint32_t w;
+            song.g[G_INTON] = (int16_t)(i & 1u);
+            scl_sub(sb, sizeof sb, (i >> 1) % 24u, (i >> 1) / 24u);
+            w = text_w(&FONT_S, sb);
+            if (w > worst) { worst = w; wr = (i >> 1) % 24u; ws = (i >> 1) / 24u; }
+            scl_home(hb, sizeof hb, (i >> 1) / 24u);
+            w = text_w(&FONT_S, hb);
+            if (w > whome) whome = w;
+        }
+        song.g[G_INTON] = 1;
+        printf("ui: SCL subtitle: widest %u px from x = %u (root %u, scale %u); the home label %u px (a knob column is 60)\n", worst, x0, wr, ws, whome);
+        check(x0 + worst <= 238u, "SCL subtitle: the widest subtitle fits the 240 px title bar");
+        check(whome <= 60u, "SCL home label: fits its knob column");
+        trk[0].p[P_SCALE] = trk[1].p[P_SCALE] = trk[2].p[P_SCALE] = 31; trk[0].p[P_ROOT] = trk[1].p[P_ROOT] = trk[2].p[P_ROOT] = 7;
+        trk[0].p[P_CHORD] = 0; frames(150);
+        ppm("layer-key-arab");
+        trk[0].p[P_SCALE] = trk[1].p[P_SCALE] = trk[2].p[P_SCALE] = 0; trk[0].p[P_ROOT] = trk[1].p[P_ROOT] = trk[2].p[P_ROOT] = 4;
+    }
+    trk[0].p[P_SCALE] = trk[1].p[P_SCALE] = trk[2].p[P_SCALE] = 16;
+    encs[panel.enc[EN_K2]] = 4; frame();           /* maqam: KNOB 2 through the scales: the root stays (D15) */
+    check(trk[0].p[P_SCALE] == 20 && SCALES[trk[0].p[P_SCALE]].set == SET_TURK && trk[0].p[P_ROOT] == 4 &&
+          trk[1].p[P_ROOT] == 4, "SCL + KNOB 2: a TURK scale, the root unchanged");
+    encs[panel.enc[EN_K2]] = -4; frame();
+    trk[0].p[P_SCALE] = trk[1].p[P_SCALE] = trk[2].p[P_SCALE] = 0;
     ppm("layer-key");
     release(B_SCL);
+    encs[panel.enc[EN_ALGO]] = -1; frame();
+    check(song.g[G_INTON] == 1, "ALGORITHM without SCL held leaves the intonation alone");
     press(B_GLO); frames(10);
     key(0); check(trk[0].p[P_MUTE] == 1, "GLO + key 1: track 1 muted");
     key(9); check(song.solo == 2u, "GLO + key 6: track 2 soloed");

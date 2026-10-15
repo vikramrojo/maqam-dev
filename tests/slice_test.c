@@ -285,32 +285,32 @@ int main(int argc, char **argv)
         uint32_t a, b, st, ok = 1;
         host_tracks_init();
         host_preset(t, 8, 0);                              /* BREAK 16 */
-        trk_note_on(t, 65, 100);
+        trk_note_on(t, 65, 100, 0);
         v = voice_of(t, 65);
         slc_bounds(&SLC_BREAK, 2, 5, &a, &b, &st);
         ok &= v && slice_of(v) == 5u && v->ph[0] == a && v->ph[2] == b;
-        trk_note_on(t, 59, 100);
+        trk_note_on(t, 59, 100, 0);
         ok &= (v = voice_of(t, 59)) && slice_of(v) == 15u;
-        trk_note_on(t, 76, 100);
+        trk_note_on(t, 76, 100, 0);
         ok &= (v = voice_of(t, 76)) && slice_of(v) == 0u;
         t->p[P_E2] = 3;                                    /* START */
-        trk_note_on(t, 60, 100);
+        trk_note_on(t, 60, 100, 0);
         ok &= (v = voice_of(t, 60)) && slice_of(v) == 3u;
         t->p[P_E2] = 0;
-        t->p[P_ROOT] = 2;                                  /* ROOT D: D4 is slice 0 */
-        trk_note_on(t, 62, 100);
+        t->p[P_ROOT] = 4;                                  /* ROOT D (maqam: quarter tones): D4 is slice 0 */
+        trk_note_on(t, 62, 100, 0);
         ok &= (v = voice_of(t, 62)) && slice_of(v) == 0u;
         check("keys: note - C4 - ROOT + START mod 16", ok, 0);
         ok = 1;
         t->p[P_ROOT] = 0;
         t->p[P_E1] = SLC_DIV_AUTO;
-        trk_note_on(t, 72, 100);                           /* 12 mod 10 hits */
+        trk_note_on(t, 72, 100, 0);                           /* 12 mod 10 hits */
         ok &= (v = voice_of(t, 72)) && slice_of(v) == 12u % SLC_BREAK.nauto && v->ph[0] == SLC_BREAK.apos[12u % SLC_BREAK.nauto];
         t->p[P_E0] = 2;                                    /* USR2: empty -> BREAK */
-        trk_note_on(t, 61, 100);
+        trk_note_on(t, 61, 100, 0);
         ok &= (v = voice_of(t, 61)) && ((uint32_t)v->s[4] & 3u) == 0u && v->ph[0] == SLC_BREAK.apos[1];
         t->p[P_E0] = 1;                                    /* USR1 */
-        trk_note_on(t, 63, 100);
+        trk_note_on(t, 63, 100, 0);
         ok &= (v = voice_of(t, 63)) && ((uint32_t)v->s[4] & 3u) == 1u && v->ph[0] == slc_usr[0].apos[3];
         check("keys: AUTO count, an empty slot plays BREAK, USR1", ok, 0);
         ok = 1;
@@ -330,7 +330,7 @@ int main(int argc, char **argv)
             host_preset(t, 8, 0);
             t->p[P_E4] = (int16_t)m;
             t->p[P_REL] = 10;
-            trk_note_on(t, 60, 100);
+            trk_note_on(t, 60, 100, 0);
             v = voice_of(t, 60);
             if (m == SLC_LOOP) {
                 blocks(FS / CTL);                          /* 1 s held: still looping */

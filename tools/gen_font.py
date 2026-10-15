@@ -24,6 +24,18 @@ SIZES = [("S", "ter-u16n.bdf", 16, 1, True, 32, 255),   # Latin-1 (Hügelton nee
          ("L", "ter-u16n.bdf", 16, 2, True, 32, 95)]   # values / titles: digits, signs, capitals
 PAD = 2
 
+# maqam: the quarter-tone accidentals (8 x 16 cells like Terminus). Code 0xA4 (the unused currency sign): the
+# half-flat = a flat mirrored (its bowl on the left); 0xA6 (the broken bar): the half-sharp = a single-stem
+# sharp, two bars across one stem. firmware/src/pitch24.h N_NOTE24 spells them "\xA4" / "\xA6" on screen.
+_FLAT = [".#......", ".#......", ".#......", ".#......", ".#......", ".#.##...", ".##..#..", ".#....#.", ".#....#.",
+         ".##..#..", ".#.##...", ".#......"]
+HALF_FLAT = ["........"] * 2 + [r[::-1] for r in _FLAT] + ["........"] * 2
+HALF_SHARP = ["........"] * 2 + ["...#....", "...#....", "...#....", ".#####..", "...#....", "...#....", "...#....", ".#####..", "...#....",
+                                 "...#....", "...#...."] + ["........"] * 1
+HALF_SHARP += ["........"] * (16 - len(HALF_SHARP))
+QUARTER_GLYPHS = {0xA4: HALF_FLAT, 0xA6: HALF_SHARP}
+assert all(len(v) == 16 and all(len(r) == 8 for r in v) for v in QUARTER_GLYPHS.values())
+
 
 def upscale(px_, w, h, scale):
     """integer nearest-neighbour enlargement of a w x h glyph"""
@@ -82,6 +94,14 @@ def render_bdf(path, scale, first, last):
             for x in range(cw):
                 cell[(top + 1) * cw + x] = 0
             glyphs[0xDC] = (dw, cell)
+    for code, rows in QUARTER_GLYPHS.items():          # maqam: half-flat / half-sharp, in two Latin-1 slots S has no use for
+        if first <= code <= last and cw == 8 and ch == 16:
+            cell = [0] * (cw * ch)
+            for y, r in enumerate(rows):
+                for x, c in enumerate(r):
+                    if c == "#":
+                        cell[y * cw + x] = 15
+            glyphs[code] = (cw, cell)
     missing = [chr(c) for c in range(first, min(last, 126) + 1) if c not in glyphs]
     if missing:
         print(f"font {path.name}: no glyph for {''.join(missing)!r} (drawn as '?')")

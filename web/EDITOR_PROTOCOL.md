@@ -3,7 +3,8 @@
 The firmware side is `firmware/src/editor.c` (SLOOP is based on Felucca: the frames keep its "FL"
 header). Commands 16-26 (user presets and live sync) form protocol v2; commands 27-30 (tracks) form
 protocol v3; commands 31-32 (any track's parameters) form protocol v4; command 33 and the extra step,
-`INFO` and `TRACK` bytes form protocol v5 (SLOOP 2.0).
+`INFO` and `TRACK` bytes form protocol v5 (SLOOP 2.0). Protocol v6 is backup / restore (SLOOP 2.3), v7
+the quarter-tone steps (see [v7](#v7-quarter-tone-steps)).
 
 **v3 (four tracks):** the device has four tracks: 1..3 are synth parts, 4 is the drum track. One
 of them is *selected* (the TRACKS page on the device, or `TRACK`). Every v1 / v2 command acts on the
@@ -46,13 +47,13 @@ after an engine change.
 
 | cmd | Request args | Reply args |
 | --- | --- | --- |
-| 1 INFO | — | version string, NENGINES, P_COUNT, G_COUNT, NSTEP, P_E0, then NENGINES engine-name strings, then (v3) NTRK (4), then (v5) the protocol version (5); older firmware ends after the names / NTRK |
+| 1 INFO | — | version string, NENGINES, P_COUNT, G_COUNT, NSTEP, P_E0, then NENGINES engine-name strings, then (v3) NTRK (4), then the protocol version (5 in SLOOP 2.0, 6 in 2.3, 7 with quarter tones); older firmware ends after the names / NTRK |
 | 2 GET | scope, id | scope, id, v14 |
 | 3 SET | scope, id, v14 | scope, id, v14 (the value after clamping). Setting global `G_ENGSEL` (id from DESC label "ENG") changes the engine with its defaults |
 | 4 DUMP | — | engine, preset, then P_COUNT × v14 (the selected track), then G_COUNT × v14 (globals) |
 | 5 DESC | scope, id | scope, id, fmt, min v14, max v14, def v14, label string, unit string, then for an enum (fmt 8) one name string per value (at most 64; firmware before SLOOP sent at most 16) |
-| 6 STEP_GET | index 0..NSTEP−1 | index, n (0..4 notes), note0..note3, time (0 NOTE, 1 TIE, 2 REST), flags (1 accent, 2 slide), vel, then (v5) lvl, hi, rat |
-| 7 STEP_SET | index, n, note0..3, time, flags, vel [, lvl, hi, rat (v5)] | same as STEP_GET (after the write). Without the v5 bytes the step's levels and ratchets become 0 |
+| 6 STEP_GET | index 0..NSTEP−1 | index, n (0..4 notes), note0..note3 (the semitone, 7 bit), time (0 NOTE, 1 TIE, 2 REST), flags (1 accent, 2 slide), vel, then (v5) lvl, hi, rat, then (v7) qbits, cents + 64 |
+| 7 STEP_SET | index, n, note0..3, time, flags, vel [, lvl, hi, rat (v5) [, qbits, cents + 64 (v7)]] | same as STEP_GET (after the write). Without the v5 bytes the step's levels and ratchets become 0; without the v7 bytes the step keeps its bend and the quarter tone of each note it did not change |
 | 8 PRESET | engine, preset | engine, preset (applies the preset: sound, sends, arp; never the pattern, the mix or the key: `LEVEL PAN MUTE`, `LEN DIV SWG GATE`, `ROOT SCL QNT CHORD` stay) |
 | 9 PROJECT | op (0 load, 1 save, 2 query), slot 0..3 | op, slot, used (1/0). Save writes flash: allow ~2 s |
 
@@ -66,8 +67,8 @@ An absent status byte retains the original reply format.
 | 14 SMP_ERASE | slot | slot, rc (erases the whole slot, ~1 s) |
 | 15 SMP_INFO | — | slots, slot KiB, then per slot: zone count (0 = empty), name string, data KiB |
 | 16 UP_LIST | start, count (1..16) | start, count, total slots, then per slot: used (0/1), engine, name string ("" if unused) |
-| 17 UP_GET | slot | slot, used, engine, name, P_COUNT × v14, 16 × (note, flags) |
-| 18 UP_PUT | slot, engine, name, P_COUNT × v14, 16 × (note, flags) | slot, rc (0 ok, 1 args, 2 flash). Writes flash: allow 1 s |
+| 17 UP_GET | slot | slot, used, engine, name, P_COUNT × v14, 16 × (note, flags), then (v7) the quarter-tone mask of the 16 notes (3 bytes, 7 bits each, LSB first, bit k = pattern note k is a quarter tone up) |
+| 18 UP_PUT | slot, engine, name, P_COUNT × v14, 16 × (note, flags) [, quarter-tone mask, 3 bytes (v7)] | slot, rc (0 ok, 1 args, 2 flash). Writes flash: allow 1 s |
 | 19 UP_STORE | slot, name | slot, rc. Stores the current sound: engine, parameters, the first 16 sequencer steps as the pattern (TIE steps → flag 4) |
 | 20 UP_LOAD | slot | slot, rc (0 ok, 1 empty/invalid). Applies it |
 | 21 UP_ERASE | slot | slot, rc |
@@ -240,6 +241,29 @@ editor takes them from `INFO`; older records load with the SLICER off and CHORD 
 - **The kit** is the drum track's `P_E0`: `DESC` of `P_E0` with the drum track selected is the enum
   `KIT` (34 kits: ORIGINAL..DUST, the GM sample kit and its treatments, then the synthesised kits from
   808). `DESC` of `P_E1..P_E7` there still describes engine 0 (unused).
+
+## v7: quarter-tone steps
+
+`INFO` ends with 7. A note byte of the device is a semitone (bits 0..6) plus a quarter-tone flag (bit 7: 50
+cents up), and a synth step has a bend of -63..+63 cents for all its notes. The wire is 7 bits a byte, so
+the flag and the bend travel as two bytes appended to the step bytes (after `rat`):
+
+| byte | content |
+| --- | --- |
+| `qbits` | bit k (0..3): note k is a quarter tone above its semitone (E half-flat 4 = D#4 with the bit) |
+| `cents + 64` | the step's bend, 1..127 (-63..+63); 64 = none. Out-of-range values clamp |
+
+A step is now `n, note0..3, time, flags, vel, lvl, hi, rat, qbits, cents + 64` (13 bytes after the index in
+`STEP_GET` / `STEP_SET`; `TRACK_STEP` has the track byte first). The drum track's steps send `0, 64`.
+`note0..3` stay the plain semitone, so an editor that ignores the new bytes shows E half-flat as D#.
+`UP_GET` / `UP_PUT` append the 16-bit mask of the pattern notes' quarter-tone flags (3 bytes) the same way.
+
+**Degrading.** Firmware before v7 sends a shorter step (no `qbits`, no bend): the editor shows no bend
+column when `INFO` reports a version below 7. An older editor against v7 firmware reads the first 11 bytes
+and ignores the rest; when it writes a step (8 or 11 bytes) the step keeps its bend, and each note it did not
+change keeps its quarter-tone flag, so editing the velocity or a flag never flattens a microtonal step. Over
+the protocol the scale has 52 codes (`DESC` of `P_SCALE`: min 0, max 51) and `P_ROOT` is 0..23 (quarter tones
+from C); `G_INTON` (the last `G_*`) is 0 EQUAL / 1 TRADITIONAL.
 
 ## v6: backup / restore (SLOOP 2.3)
 

@@ -93,7 +93,7 @@ static void pattern_transpose(track_t *t, int32_t d)    /* every note a semitone
     fm1_irq_off();
     for (i = 0; i < NSTEP; i++)
         for (j = 0; j < t->step[i].n && j < 4u; j++)
-            t->step[i].note[j] = (uint8_t)clamp(t->step[i].note[j] + (d > 0 ? 1 : -1), 0, 127);
+            t->step[i].note[j] = (uint8_t)note_shift(t->step[i].note[j], d > 0 ? 1 : -1, 0);   /* maqam: keeps the quarter tone */
     fm1_irq_on();
 }
 
@@ -185,7 +185,7 @@ static void steps_held_edit(uint32_t knob, int32_t s)
             for (i = 0; i < st->n; i++) {
                 uint32_t sh = 2u * i, lv = (st->lvl >> sh) & 3u, rt = (st->rat >> sh) & 3u;
                 if (knob == 0u) {
-                    st->note[i] = (uint8_t)clamp(st->note[i] + s, 0, 127);
+                    st->note[i] = (uint8_t)note_shift(st->note[i], s, 0);   /* maqam: keeps the quarter tone */
                     continue;
                 }
                 if (knob == 1u)
@@ -245,10 +245,10 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
         step_down((uint32_t)w);
         return;
     case LY_SCALE: {                                    /* the key of the song: every synth part */
-        uint32_t i, root = (53u + k) % 12u;
-        for (i = 0; i < NPART; i++)
+        uint32_t i, root = (uint32_t)(2 * (int32_t)((53u + k) % 12u) + 24 + oct_mod(fm1_in.buttons, dyn_bit[0], dyn_bit[1], 0u)) % 24u;
+        for (i = 0; i < NPART; i++)                     /* maqam: quarter tones; OCT- / OCT+ held: a quarter tone down / up */
             trk[i].p[P_ROOT] = (int16_t)root;
-        ui_say("KEY ", N_NOTE[root]);
+        ui_say("KEY ", N_NOTE24G[root]);
         return;
     }
     case LY_SONG: {                                     /* sections A..D: play, store; loop / song; SONG REC */
@@ -360,7 +360,7 @@ static void layer_knobs(uint32_t layer)
                 if (is_drum(t)) {
                     pen_lane = (uint8_t)clamp(pen_lane + s, 0, DRUM_LANES - 1);
                 } else {
-                    pen_note[0] = (uint8_t)clamp(pen_note[0] + s, 0, 127);
+                    pen_note[0] = (uint8_t)note_shift(pen_note[0], s, 0);   /* maqam: semitones, the quarter tone kept */
                     pen_n = 1;
                 }
             } else if (k == 1u) {
@@ -379,7 +379,7 @@ static void layer_knobs(uint32_t layer)
                     t->p[P_CHORD] = (int16_t)clamp(t->p[P_CHORD] + s, 0, 5);
             } else if (k == 1u) {
                 uint32_t i;
-                int16_t v = (int16_t)clamp(trk[0].p[P_SCALE] + s, 0, NSCALES - 1);
+                int16_t v = (int16_t)scale_step((uint32_t)trk[0].p[P_SCALE], s);   /* maqam: within the current set, wrapping (D8) */
                 for (i = 0; i < NPART; i++)
                     trk[i].p[P_SCALE] = v;
             } else if (k == 2u) {
@@ -457,7 +457,7 @@ static void layer_screen_draw(void)
 {
     static uint32_t head, tiles, foot;
     static tile_t tl[16];
-    static char v[4][10], sub[24];
+    static char v[4][10], sub[24], home[12];   /* maqam: home: the SCL home hint */
     const char *lab[4] = {"", "", "", ""}, *val[4] = {v[0], v[1], v[2], v[3]};
     int32_t ratio[4] = {-1, -1, -1, -1};
     uint32_t i, layer = ui.layer, sel = song.sel;
@@ -567,6 +567,14 @@ static void layer_screen_draw(void)
                     lv = st->lvl & 3u;
                     rt = st->rat & 3u;
                     note_name(tl[i].lab, st->note[0]);
+                    if (st->cents) {                  /* maqam: the bend after the note, "-5c" (the c only when the tile has room) */
+                        char cb[8];
+                        cents_str(cb, st->cents);
+                        if (str_len(tl[i].lab) + str_len(cb) < 7u)
+                            str_cpy(tl[i].lab + str_len(tl[i].lab), cb, 8);
+                        if (str_len(tl[i].lab) + 1u < 7u)
+                            str_cpy(tl[i].lab + str_len(tl[i].lab), "c", 2);
+                    }
                 } else if (st->time == ST_TIE) {
                     str_cpy(tl[i].lab, "--", 8);
                 }
@@ -594,7 +602,7 @@ static void layer_screen_draw(void)
             str_cpy(v[0], LANE_SHORT[pen_lane], 8);
         else
             note_name(v[0], pen_note[0]);
-        ratio[0] = is_drum(t) ? pen_lane * 1000 / 15 : pen_note[0] * 1000 / 127;
+        ratio[0] = is_drum(t) ? pen_lane * 1000 / 15 : (int32_t)note_semi(pen_note[0]) * 1000 / 127;   /* maqam: the semitone */
         if (ui.step_held) {
             lab[1] = "level", lab[2] = "ratchet";
             str_cpy(v[1], "-  +", 8);
@@ -611,42 +619,43 @@ static void layer_screen_draw(void)
         break;
     }
     case LY_SCALE: {                                    /* the white keys' notes / chords; the root lit */
-        uint32_t root = (uint32_t)trk[0].p[P_ROOT] % 12u, mask = SCALE_MASK[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)];
         col = TE_COL[1];
-        str_cpy(sub, "key: ", sizeof sub);
-        str_cpy(sub + 5, N_NOTE[root], 4);
-        str_cpy(sub + str_len(sub), " ", 2);
-        te_lower(sub + str_len(sub), N_SCALE[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)], 8);
+        scl_sub(sub, sizeof sub, (uint32_t)trk[0].p[P_ROOT], scale_index(&trk[0]));   /* maqam: the subtitle (set, home: task 4.2) */
         for (i = 0; i < 16u; i++) {
-            uint32_t k = key_of_white(i), pc = (53u + k) % 12u, in = (mask >> ((pc + 12u - root) % 12u)) & 1u;
+            uint32_t k = key_of_white(i), pc = (53u + k) % 12u, in = key_in_scale(&trk[0], k, 0), isroot = key_in_scale(&trk[0], k, 1);
+            int32_t mod = oct_mod(fm1_in.buttons, dyn_bit[0], dyn_bit[1], 0u);
             if (!is_drum(t) && t->p[P_CHORD]) {       /* chord mode: the chord this key plays (the i chord lit) */
                 uint8_t c[4];
                 uint32_t n = kb_map(t, k), m;
                 if (n != KB_SILENT && (m = chord_notes(t, n, c)) != 0u) {
-                    uint32_t third = m > 1u ? (uint32_t)(c[1] - c[0]) : 4u;
-                    str_cpy(tl[i].lab, N_NOTE[c[0] % 12u], 8);
+                    uint32_t third = m > 1u ? note_p24(c[1]) - note_p24(c[0]) : 8u;   /* maqam: quarter tones */
+                    str_cpy(tl[i].lab, N_NOTE24G[note_p24(c[0]) % 24u], 8);   /* maqam: with the quarter-tone glyphs */
                     if (t->p[P_CHORD] == 5)
                         str_cpy(tl[i].lab + str_len(tl[i].lab), "5", 2);
-                    else if (third == 3u)
+                    else if (third == 6u)
                         str_cpy(tl[i].lab + str_len(tl[i].lab), "m", 2);
-                    pc = c[0] % 12u;
+                    isroot = note_p24(c[0]) % 24u == (uint32_t)trk[0].p[P_ROOT];
                     in = 1;
                 }
-            } else {
-                str_cpy(tl[i].lab, N_NOTE[pc], 8);
+            } else {                                  /* maqam: the root this key sets (the quarter-tone modifier shows) */
+                str_cpy(tl[i].lab, N_NOTE24G[(uint32_t)(2 * (int32_t)pc + 24 + mod) % 24u], 8);
             }
-            tl[i].bg = pc == root ? col : TE_G1;
-            tl[i].fg = pc == root ? C_BLACK : in ? C_WHITE : TE_G2;
+            tl[i].bg = isroot ? col : TE_G1;
+            tl[i].fg = isroot ? C_BLACK : in ? C_WHITE : TE_G2;
         }
         lab[0] = "chord", lab[1] = "scale", lab[2] = "keys", lab[3] = "transp";
+        scl_home(home, sizeof home, scale_index(&trk[0]));   /* maqam: the home hint takes the scale knob's label (non-WEST) */
+        if (home[0])
+            lab[1] = home;
         te_lower(v[0], N_CHORD[clamp(t->p[P_CHORD], 0, 5)], 8);
-        te_lower(v[1], N_SCALE[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)], 8);
+        te_lower(v[1], N_SCALE[scale_index(&trk[0])], 8);   /* maqam: SCALES codes */
         te_lower(v[2], N_QUANT[clamp(t->p[P_QUANT], 0, 2)], 8);
         fmt_int(v[3], t->p[P_TRANS]);
         if (is_drum(t))
             v[0][0] = v[2][0] = v[3][0] = 0;
         ratio[0] = t->p[P_CHORD] * 200;
-        ratio[1] = trk[0].p[P_SCALE] * 1000 / (NSCALES - 1);
+        ratio[1] = (int32_t)scale_set_rank(scale_index(&trk[0])) * 1000 /
+                   (int32_t)(scale_set_count(SCALES[scale_index(&trk[0])].set) - 1u);   /* maqam: the place within the set */
         ratio[2] = t->p[P_QUANT] * 500;
         ratio[3] = (t->p[P_TRANS] + 24) * 1000 / 48;
         break;

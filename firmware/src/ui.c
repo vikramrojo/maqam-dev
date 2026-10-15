@@ -176,8 +176,9 @@ static void cursor_fix(void)                           /* LEN got shorter: onto 
 
 static void note_name(char *b, uint32_t n)
 {
-    str_cpy(b, N_NOTE[n % 12u], 4);
-    fmt_int(b + str_len(b), (int32_t)(n / 12u) - 1);
+    uint32_t p = note_p24(n), idx = p % 24u;           /* maqam: the note byte with its quarter tone: "E\xA44" (E half-flat 4) */
+    str_cpy(b, N_NOTE24G[idx], 5);
+    fmt_int(b + str_len(b), (int32_t)(p / 24u) - 1 + (idx == 23u));   /* (B + 50 c is the next octave's C half-flat) */
 }
 
 static void open_family(uint32_t fam)

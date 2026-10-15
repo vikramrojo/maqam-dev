@@ -6,8 +6,9 @@
  * the transport is stopped and nothing sounds) and comes back at power-on: SLOOP starts where you
  * left it.
  *
- * Formats: 4 ("FUN4", written, SLOOP 2.0): today's P_COUNT / G_COUNT, 10-byte steps (levels and
- * ratchets; the drum track: 16 lanes). Read and converted: 3 ("FUN3", SLOOP 1.x: 8-byte steps, the
+ * Formats: 5 ("FUN5", written; maqam): today's P_COUNT / G_COUNT (G_INTON is in g[]), P_ROOT in quarter
+ * tones, 11-byte steps (a cent bend; the note bytes carry the quarter-tone flag). Read and converted: 4
+ * ("FUN4", SLOOP 2.0 .. 2.3: 10-byte steps, no bend, P_ROOT 0..11, no G_INTON = TRADITIONAL), 3 ("FUN3", SLOOP 1.x: 8-byte steps, the
  * drum track's notes become its lanes, the swings x 0.8 for the MPC scale), 2 ("FUN2") and 1 ("FUN1"),
  * which held PROJ_NP_V2 parameters per track, mapped by count as user presets are (the first
  * PROJ_NP_V2 - 8 are P_LEVEL.. in order, the last 8 P_E0..P_E7; the parameters added since take their
@@ -16,7 +17,8 @@
  *
  * Built on the host too (tests/project_test.c, -DPROJ_HOST): the part above the #ifndef
  * PROJ_HOST needs core.h, params.c (TP), drums.c (the lanes), the engines and trk_def_engine (ui.c). */
-#define PROJ_MAGIC 0x46554E34u                 /* "FUN4": four tracks, P_COUNT parameters each, 10-byte steps */
+#define PROJ_MAGIC 0x46554E35u                 /* "FUN5": four tracks, P_COUNT parameters each, 11-byte steps (maqam) */
+#define PROJ_MAGIC_V4 0x46554E34u              /* "FUN4": 10-byte steps; read only */
 #define PROJ_MAGIC_V3 0x46554E33u              /* "FUN3": SLOOP 1.x; read only */
 #define PROJ_MAGIC_V2 0x46554E32u              /* "FUN2": four tracks, PROJ_NP_V2 parameters; read only */
 #define PROJ_MAGIC_V1 0x46554E31u              /* "FUN1": one instrument; loads into track 1 */
@@ -24,6 +26,7 @@
 #define PROJ_NG_V3 27u                         /* G_COUNT of formats 1..3 */
 #define PROJ_NP_V2 53u                         /* P_COUNT of formats 1 and 2 (P_E0 was 45) */
 #define PROJ_NG_V2 27u                         /* G_COUNT of formats 1 and 2 */
+#define PROJ_NG_V4 G_INTON                     /* maqam: G_COUNT of format 4 (G_INTON was appended after it) */
 typedef struct {                               /* one track; the drum track ignores engine / preset */
     int16_t p[P_COUNT];
     uint8_t engine, preset;
@@ -39,6 +42,23 @@ typedef struct {
     proj_trk_t t[NTRK];
     uint32_t sum;
 } project_t;
+typedef struct { uint8_t note[4], n, time, flags, vel, lvl, rat; } step10_t;   /* maqam: the steps of format 4 */
+typedef struct { uint8_t on[2], lvl[4], rat[4]; } dstep10_t;
+typedef struct {                               /* a track of format 4, read only */
+    int16_t p[P_COUNT];
+    uint8_t engine, preset;
+    union {
+        step10_t step[NSTEP];
+        dstep10_t dstep[NSTEP];
+    };
+} proj_trk_v4_t;
+typedef struct {                               /* format 4 (SLOOP 2.0 .. 2.3), read only */
+    uint32_t magic, size;
+    int16_t g[PROJ_NG_V4];
+    uint8_t sel, rsv[3];
+    proj_trk_v4_t t[NTRK];
+    uint32_t sum;
+} project_v4_t;
 typedef struct { uint8_t note[4], n, time, flags, vel; } step8_t;   /* the steps of formats 1..3 */
 typedef struct {                               /* a track of format 3, read only */
     int16_t p[PROJ_NP_V3];
@@ -85,7 +105,7 @@ static uint32_t proj_hash(const void *p, uint32_t n)   /* FNV-1a over n bytes */
 static uint32_t proj_sum(const project_t *p) { return proj_hash(p, sizeof *p - 4u); }
 static int proj_ok(const project_t *q) { return q->magic == PROJ_MAGIC && q->size == sizeof *q && q->sum == proj_sum(q); }
 
-/* ---- old formats -> format 4 */
+/* ---- old formats -> format 5 */
 /* an old step into a synth step (no level, no ratchet) */
 static void step_from8(step_t *d, const step8_t *s)
 {
@@ -95,6 +115,7 @@ static void step_from8(step_t *d, const step8_t *s)
     d->flags = s->flags;
     d->vel = s->vel;
     d->lvl = d->rat = 0;
+    d->cents = 0;                               /* maqam */
 }
 /* an old drum step (GM notes) into the drum track's lanes; its velocity / accent -> their level */
 static void dstep_from8(dstep_t *d, const step8_t *s)
@@ -125,6 +146,7 @@ static void proj_trk_from_v3(proj_trk_t *d, const proj_trk_v3_t *s, int drum)
         d->p[k] = k < nc ? s->p[k] : TP[k].def;
     for (k = 0; k < 8u; k++)
         d->p[P_E0 + k] = s->p[nc + k];
+    d->p[P_ROOT] = (int16_t)(2 * clamp(d->p[P_ROOT], 0, 11));   /* maqam: the root in quarter tones */
     d->p[P_SSWING] = swing_from_v3(d->p[P_SSWING]);
     d->p[P_ASWING] = swing_from_v3(d->p[P_ASWING]);
     d->engine = drum ? 0u : s->engine;
@@ -162,6 +184,38 @@ static void proj_from_v3_ok(project_t *q, const project_v3_t *v3)
     for (i = 0; i < NTRK; i++)
         proj_trk_from_v3(&q->t[i], &v3->t[i], i == TRK_DRUM);
     q->sum = proj_sum(q);
+}
+/* a format 4 project (SLOOP 2.0 .. 2.3) -> slot q as format 5: the steps get a 0 bend, P_ROOT doubles (it
+ * names the same note), the scale stays, G_INTON is TRADITIONAL */
+static int proj_from_v4(project_t *q, const project_v4_t *v4, int n)
+{
+    uint32_t i, k;
+    if (n != (int)sizeof *v4 || v4->magic != PROJ_MAGIC_V4 || v4->size != sizeof *v4 ||
+        v4->sum != proj_hash(v4, sizeof *v4 - 4u))
+        return 0;
+    memset(q, 0, sizeof *q);
+    q->magic = PROJ_MAGIC;
+    q->size = sizeof *q;
+    for (i = 0; i < G_COUNT; i++)
+        q->g[i] = i < PROJ_NG_V4 ? v4->g[i] : GP[i].def;
+    q->sel = v4->sel;
+    for (i = 0; i < NTRK; i++) {
+        proj_trk_t *d = &q->t[i];
+        const proj_trk_v4_t *s = &v4->t[i];
+        memcpy(d->p, s->p, sizeof d->p);
+        d->p[P_ROOT] = (int16_t)(2 * clamp(s->p[P_ROOT], 0, 11));
+        d->engine = s->engine;
+        d->preset = s->preset;
+        for (k = 0; k < NSTEP; k++) {
+            if (i == TRK_DRUM) {
+                memcpy(&d->dstep[k], &s->dstep[k], sizeof s->dstep[k]);   /* (rsv stays 0) */
+            } else {
+                memcpy(&d->step[k], &s->step[k], sizeof s->step[k]);      /* (cents stays 0) */
+            }
+        }
+    }
+    q->sum = proj_sum(q);
+    return 1;
 }
 static int proj_from_v3(project_t *q, const project_v3_t *v3, int n)
 {
@@ -225,7 +279,7 @@ static int proj_import(project_t *q, const void *b, int n)
         memcpy(q, b, sizeof *q);
         return 1;
     }
-    return proj_from_v3(q, (const project_v3_t *)b, n) || proj_from_v2(q, (const project_v2_t *)b, n) ||
+    return proj_from_v4(q, (const project_v4_t *)b, n) || proj_from_v3(q, (const project_v3_t *)b, n) || proj_from_v2(q, (const project_v2_t *)b, n) ||
            proj_from_v1(q, (const project_v1_t *)b, n);
 }
 
@@ -278,8 +332,7 @@ static void proj_apply(const project_t *p, int all)
                     st->n = 4;
                 if (st->time > ST_REST)
                     st->time = ST_REST;
-                for (j = 0; j < 4u; j++)
-                    st->note[j] &= 127u;
+                st->cents = (int8_t)clamp(st->cents, -63, 63);   /* maqam: the note bytes keep their quarter-tone flag */
             }
     }
 }
@@ -292,7 +345,8 @@ static uint8_t sec_dirty, song_dirty;           /* live sections / the song: in 
 #if FELUCCA_FLASH
 /* slot from flash into RAM (format 4, or an old one converted) */
 static union {
-    project_t v4;
+    project_t v4;                               /* (the current format; named for its first user) */
+    project_v4_t old4;                          /* maqam: format 4 */
     project_v3_t v3;
     project_v2_t v2;
     project_v1_t v1;

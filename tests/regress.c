@@ -332,7 +332,7 @@ static void job_cpu(const job_t *j)
             trk[p].p[P_E4] = SLC_LOOP;                  /* SLICE: its slices end by themselves; loop them */
 #endif
         for (i = 0; i < parts[p][2]; i++)
-            trk_note_on(&trk[p], NOTES[i] + 12u * p, 100);
+            trk_note_on(&trk[p], NOTES[i] + 12u * p, 100, 0);
     }
     for (k = 0; k < nb / 2u + nb; k++) {
         if (k == nb / 2u) {
@@ -474,7 +474,7 @@ static int chk_budget(char *msg, uint32_t n)
                 trk_note_off(&trk[p], note);
                 held[p][note] = 0;
             } else {
-                trk_note_on(&trk[p], note, 60u + rnd(60));
+                trk_note_on(&trk[p], note, 60u + rnd(60), 0);
                 held[p][note] = 1;
             }
         }
@@ -521,11 +521,11 @@ static int chk_steal_fade(char *msg, uint32_t n)
         uint32_t ms = f * 1000u / FS, k0 = voice_kills;
         if (f == 0)
             for (i = 0; i < 7u; i++)
-                trk_note_on(&trk[0], N1[i], 90);
+                trk_note_on(&trk[0], N1[i], 90, 0);
         if (f == at(0.5))
-            trk_note_on(&trk[1], 74, 90);
+            trk_note_on(&trk[1], 74, 90, 0);
         if (ms >= 1000u && f % (FS / 2u) < CTL && ms < 3500u)
-            trk_note_on(&trk[ms / 500u % 2u ? 1u : 2u], 76u + ms / 250u, 90);
+            trk_note_on(&trk[ms / 500u % 2u ? 1u : 2u], 76u + ms / 250u, 90, 0);
         blk();
         if (voice_kills != k0 && nev < 8u)
             ev[nev++] = f;
@@ -568,10 +568,10 @@ static int chk_keep(char *msg, uint32_t n, uint32_t mode)
         trk[k].p[P_AMODE] = 0;
         trk[k].p[P_SUS] = 100;
     }
-    trk_note_on(&trk[0], 40, 100);
+    trk_note_on(&trk[0], 40, 100, 0);
     for (k = 0; k < 2u * FS / CTL; k++) {
         if (k % 3u == 0u)
-            trk_note_on(&trk[1u + k / 3u % 2u], 50u + k / 3u % 40u, 100);
+            trk_note_on(&trk[1u + k / 3u % 2u], 50u + k / 3u % 40u, 100, 0);
         blk();
         {
             const voice_t *v = &trk[0].v[0];
@@ -597,7 +597,7 @@ static int chk_voice_cap(char *msg, uint32_t n)
         t->p[P_VOICE] = mode ? V_UNISON : V_POLY;
         t->p[P_AMODE] = 0;
         for (k = 0; k < 8u; k++)
-            trk_note_on(t, 60u + 2u * k, 100);
+            trk_note_on(t, 60u + 2u * k, 100, 0);
         for (k = 0; k < FS / 2u / CTL; k++) {
             uint32_t a = 0;
             blk();

@@ -245,10 +245,10 @@ static void graph_roll(const track_t *t, uint16_t c)
     int32_t lo = 127, hi = 0, prev_y = -1;
     for (i = 0; i < len; i++)
         for (j = 0; j < t->step[i].n; j++) {
-            if (t->step[i].note[j] < lo)
-                lo = t->step[i].note[j];
-            if (t->step[i].note[j] > hi)
-                hi = t->step[i].note[j];
+            if ((int32_t)note_semi(t->step[i].note[j]) < lo)   /* maqam: semitones (the flag is a byte bit) */
+                lo = (int32_t)note_semi(t->step[i].note[j]);
+            if ((int32_t)note_semi(t->step[i].note[j]) > hi)
+                hi = (int32_t)note_semi(t->step[i].note[j]);
         }
     if (lo > hi) {
         lo = 48;
@@ -276,7 +276,7 @@ static void graph_roll(const track_t *t, uint16_t c)
             continue;
         }
         for (j = 0; j < st->n; j++) {
-            int32_t y = 80 - (st->note[j] - lo) * 74 / (hi - lo);
+            int32_t y = 80 - ((int32_t)note_semi(st->note[j]) - lo) * 74 / (hi - lo);
             cv_rect(x + 2, y, 10, 1, (st->flags & SF_ACCENT) ? C_WHITE : c);
             if (j == 0)
                 prev_y = y;
@@ -288,11 +288,11 @@ static void graph_roll(const track_t *t, uint16_t c)
 static void graph_scale(const track_t *t, uint16_t c)
 {
     static const uint8_t BLACK[12] = {0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0};
-    uint32_t i, mask = scale_mask(t);
+    uint32_t i;
     for (i = 0; i < 12u; i++) {
-        uint32_t deg = (i + 12u - (uint32_t)t->p[P_ROOT]) % 12u;
+        uint32_t kk = (i + 7u) % 12u;                   /* maqam: the key of this pitch class; lit as in the SCL layer (quarter tones) */
         int32_t x = 6 + (int32_t)i * 19;
-        uint16_t col = (mask >> deg) & 1u ? (deg == 0u ? C_WHITE : c) : C_DIM;
+        uint16_t col = key_in_scale(t, kk, 0) ? (key_in_scale(t, kk, 1) ? C_WHITE : c) : C_DIM;
         cv_rect(x, BLACK[i] ? 10 : 40, 16, 1, col);
         cv_rect(x + 7, BLACK[i] ? 10 : 40, 1, 40, col);
     }
@@ -863,7 +863,17 @@ static void draw_columns(void)
             str_cpy(val, "--", 12);
             u[0] = 0;
         }
-        {
+        if (cur_page()->id[1] == 4u) {                    /* maqam: STEP 2: STEP and the CENT bend */
+            char sn[8], sl[8], cb[8];
+            fmt_int(sn, (int32_t)ui.cursor + 1);
+            str_cpy(sl, "/", 8);
+            fmt_int(sl + 1, TSEL->p[P_SLEN]);
+            cents_str(cb, st->cents);
+            draw_column(0, "STEP", sn, sl, VAL(0u), -1, ICON_AUTO);
+            draw_column(1, "CENT", cb, "c", step_on(st) ? VAL(1u) : C_DIM, ((int32_t)st->cents + 63) * 1000 / 126, ICON_AUTO);
+            draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
+            draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
+        } else {
             static const char *const FLAG_N[4] = {"-", "ACC", "SLD", "A+S"};
             char sn[8], sl[8];
             fmt_int(sn, (int32_t)ui.cursor + 1);
