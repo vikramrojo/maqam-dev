@@ -20,8 +20,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      JIELI_TOOLCHAIN: ${{ github.workspace }}/../jieli/toolchain
-      AC79_SDK: ${{ github.workspace }}/../fw-AC79_AIoT_SDK
+      JIELI_TOOLCHAIN: /home/runner/jieli/toolchain       # (actions/cache refuses paths with '..')
+      AC79_SDK: /home/runner/fw-AC79_AIoT_SDK
     steps:
       - uses: actions/checkout@v4
 
@@ -42,18 +42,24 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ${{ github.workspace }}/../jieli
-            ${{ github.workspace }}/../fw-AC79_AIoT_SDK
+            /home/runner/jieli
+            /home/runner/fw-AC79_AIoT_SDK
           key: jieli-toolchain-ac79-sdk-v1.2.1-2023-12-13
       - name: JieLi toolchain
         if: steps.deps.outputs.cache-hit != 'true'
-        run: sh tools/get_toolchain.sh "$GITHUB_WORKSPACE/../jieli"
+        run: sh tools/get_toolchain.sh /home/runner/jieli
       - name: AC79 SDK (only cpu/wl82/tools)
         if: steps.deps.outputs.cache-hit != 'true'
-        run: |
-          git clone --depth 1 --filter=blob:none --sparse --branch AC79NN_SDK_V1.2.1_2023-12-13 \
-              https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$AC79_SDK"
-          git -C "$AC79_SDK" sparse-checkout set cpu/wl82/tools
+        run: |                                    # gitee.com sometimes resets connections from CI: retry
+          for i in 1 2 3 4 5; do
+            rm -rf "$AC79_SDK"
+            git clone --depth 1 --filter=blob:none --sparse --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+                https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$AC79_SDK" &&
+              git -C "$AC79_SDK" sparse-checkout set cpu/wl82/tools &&
+              [ -f "$AC79_SDK/cpu/wl82/tools/uboot.boot" ] && exit 0
+            echo "attempt $i failed; retrying in $((i * 20)) s"; sleep $((i * 20))
+          done
+          exit 1
 
       - name: Build the firmware
         run: |
