@@ -36,7 +36,7 @@ python3 -m http.server 8000 --bind 127.0.0.1 -d docs/webapp/emu
 Open **http://localhost:8000/** in Chrome and press **Switch on**. Use the panel or the keyboard:
 - **`.`** holds SEL, and **`=`** holds SEQ.
 - **`Z`** / **`X`** are OCT− / OCT+.
-- The white keys are **`Q`–`I`** then **`A`–`K`**, so C4 is **`U`**.
+- The white keys are **`Q`–`I`** then **`A`–`K`**, from F3: so C4 is **`T`**, D4 `Y`, E4 `U`, F4 `I`, B4 `D`, C5 `F`.
 - Shift-click latches a button.
 
 Run section 4 here first. Anything that fails here will also fail on the FM-1, and it's quicker to report from here.
