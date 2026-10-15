@@ -28,6 +28,9 @@
   .rule { --gap: 0; display: flex; block-size: 4px; }
   .rule > i { --bg: var(--tone); flex: 1; }
 
+  /* a direction label in the scale tables ("down"): the word in its tone's colour, same weight as "up", nothing around it */
+  .dir { --fg: var(--tone-ink); }
+
   /* link cards: one per destination, accent by tone */
   .link-card { --bg: var(--surface); --fg: var(--ink); --border-color: var(--tone); --border-width: 0 0 0 4px; --border-style: solid;
     --radius: var(--radius-sm); --pad: 1em 1.1em; --gap: .2em; display: flex; flex-direction: column; text-decoration: none;

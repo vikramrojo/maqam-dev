@@ -280,7 +280,7 @@ def form_cells(form, tune):
     return "".join(h)
 
 
-DOWN = '<span class="badge" data-tone="warning" data-variant="solid">down</span>'
+DOWN = '<span class="dir" data-tone="warning">down</span>'      # the descending row: the word in the tone's colour, no pill
 
 
 def scales_page(site, rows=None):
@@ -316,7 +316,7 @@ def scales_page(site, rows=None):
                      + f'<td colspan="{maxdeg - n}"></td>' * (maxdeg > n) + "</tr>")
             if r["down"]:
                 m = len(r["down"])
-                t.append(f'<tr class="down"><td></td><td></td><td></td><td>{DOWN}</td>{form_cells(r["down"], r["tune"])}'
+                t.append(f'<tr class="down"><td></td><td></td><td></td><td class="small">{DOWN}</td>{form_cells(r["down"], r["tune"])}'
                          + f'<td colspan="{maxdeg - m}"></td>' * (maxdeg > m) + "</tr>")
         t.append("</tbody></table></div></section>")
         parts.append("".join(t))
