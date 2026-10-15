@@ -51,6 +51,11 @@
 ### D4. Pressure and the OCT re-press
 - A key re-pressed by OCT (`kb_repress`) keeps its landing, so its pressure carries on without a jump.
 
+### D7. Flash: the test build has no parameter icons
+- The default image is 581,308 B of the app's 581,564 B flash region (`firmware/app.ld`, XIP): 256 B spare. The pressure code needs ~2 KB, so the first CI build overflowed by 1,876 B.
+- The test package is therefore built with `FELUCCA_ICONS=0` (upstream's switch: the labels get their full width, about 3 KB freed). The default package keeps the icons.
+- Making AFT part of the default build needs that space found elsewhere first (smaller sample sets, or a larger app region, which moves the flash data area and is a format question).
+
 ### D5. One direction: up, 25 cents
 - The reading can only fall below the key's landing (pressing harder), so the pressure is 0..127, never negative: a bend can go one way only. Up is chosen: a string pressed harder on a fretless neck goes sharp, and a vibrato that rises from the note keeps the note itself in tune at rest.
 - Only the lowest range, 25 c: the noise (±5 counts in 64) gives 10..13 steps, ~2 c each at 25 c, below hearing; at 100 c they would be audible. AFT is therefore OFF / ON, not a depth.

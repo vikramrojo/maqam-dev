@@ -1,6 +1,6 @@
 # QA: maqam-aftertouch-bend (the test package)
 
-**Download:** the CI run's artifact `maqam-press-firmware-<sha>`, file `maqam-press.fwsc`. Install it with the web installer as usual, after a backup. Its About screen (hold HOME → about) reads `MAQAM 2.6 AFT`. To go back, install the normal `maqam-firmware-<sha>` package.
+**Download:** the CI run's artifact `maqam-press-firmware-<sha>`, file `maqam-press.fwsc`. Install it with the web installer as usual, after a backup. Its About screen (hold HOME → about) reads `MAQAM 2.6 AFT`. It has no parameter icons next to the knob labels: the flash is full, and this frees the room for the pressure code (design D7). To go back, install the normal `maqam-firmware-<sha>` package.
 
 ## 1. Nothing broke
 - [ ] Every key from F3 to G5 plays once per press: no stuck notes, no double notes, no notes on their own.

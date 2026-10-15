@@ -131,13 +131,15 @@ jobs:
           retention-days: 30
 
       # maqam: a second package with the pressure bend built in (MAQAM_PRESS=1, openspec/changes/maqam-aftertouch-bend),
-      # to try on the FM-1; not the default and not on the site. Built last: the package above stays the default one
+      # to try on the FM-1; not the default and not on the site. Built last: the package above stays the default one.
+      # Without the parameter icons (FELUCCA_ICONS=0, upstream's switch): the default image leaves ~256 B of the
+      # app's flash region (app.ld XIP), and the pressure code needs ~2 KB
       - name: Build the pressure-bend test firmware (MAQAM_PRESS=1)
         id: press
         continue-on-error: true
         run: |
           set -o pipefail
-          MAQAM_PRESS=1 sh build.sh 2>&1 | tee build-press.log
+          MAQAM_PRESS=1 FELUCCA_ICONS=0 sh build.sh 2>&1 | tee build-press.log
           mkdir -p press && cp build/felucca.fwsc press/maqam-press.fwsc && cp build-press.log press/
       - name: Upload the pressure-bend test firmware
         if: steps.press.outcome == 'success'

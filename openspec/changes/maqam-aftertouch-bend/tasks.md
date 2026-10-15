@@ -17,7 +17,7 @@
 - [x] 3.2 `press.c`: held keys → their voices (chords together, keys on their own pressure); OCT re-press keeps the landing (it is the HAL's, per physical key). Verify with `press_test.c`.
 - [x] 3.3 G_AFT (OFF / ON) on the GLO page PRESS, in the editor's globals through the description. Verify with `press_test.c` and `test_web.mjs` (the default build unchanged).
 - [x] 3.4 Poly key pressure out with AFT ON, none with AFT OFF. Verify with `press_test.c`.
-- [x] 3.5 CI builds the test package `maqam-press-firmware-<sha>` (About: `MAQAM 2.6 AFT`) after the default one.
+- [x] 3.5 CI builds the test package `maqam-press-firmware-<sha>` (About: `MAQAM 2.6 AFT`) after the default one, with `FELUCCA_ICONS=0` for flash room (design D7).
 
 ## 4. Device checks and docs
 
