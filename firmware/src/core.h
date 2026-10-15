@@ -17,8 +17,17 @@ enum { V_POLY, V_MONO, V_LEGATO, V_UNISON };   /* P_VOICE */
 #ifndef FELUCCA_SLICE
 #define FELUCCA_SLICE 0          /* the SLICE engine (eng_slice.c): kept in the tree, not built by default */
 #endif
-#define NENGINES (9 + FELUCCA_SLICE)   /* SLICE, when built, comes last: the other engines keep their numbers */
+/* SLOOP 2.4: FM6 (eng_fm6.c) is engine 9 in every build; SLICE, when built, comes last (10). Projects and user
+ * presets store the engine index as a byte, and no shipped SLOOP was built with SLICE, so its number is stored
+ * nowhere: FM6 may take 9 and SLICE moves up (engines.c ENGINES[], params.c N_ENGNAME follow this order) */
+#define NENGINES (12 + FELUCCA_SLICE)
+#define ENGI_GRAIN 8u            /* GRAIN, PHYS, NOISE (SLOOP 2.5, appended after FM6: the stores keep the numbers) */
+#define ENGI_PHYS 10u
+#define ENGI_NOISE 11u
+#define ENGI_SLICE 12u           /* with FELUCCA_SLICE: after NOISE */
+#define ENGI_FM6 9u              /* the FM6 engine's index (eng_fm6.c, the stores: append-only) */
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
+#define NELEM(a) (sizeof(a) / sizeof((a)[0]))
 
 /* ------------------------------------------------------- parameters --- */
 enum {
@@ -53,6 +62,15 @@ enum {                          /* per-track parameters */
     P_SLCR, P_SLPAT, P_SLRATE, P_SLDEPTH,      /* SLICER insert (slicer.c); new common parameters go just
                                                 * before P_E0 (user presets and projects map by count) */
     P_CHORD,                                   /* chord mode: one key plays a chord of the scale (seq.c) */
+    P_TFLT,                                    /* SLOOP 2.4: the track's filter, < 0 low-pass, > 0 high-pass (fx.c) */
+    P_STRUM,                                   /* SLOOP 2.4: a chord's notes one after the other, ms each (> 0 down, < 0 up) */
+    P_VLEAD,                                   /* SLOOP 2.4: chord mode, each chord voiced nearest the last (seq.c) */
+    /* SLOOP 2.6, after Felucca 1.5 / 1.4 (Leo Kuroshita). Projects (format 6) keep them in a byte each: 0..127 */
+    P_ITYPE, P_IA, P_IB, P_IC, P_IMIX,         /* the track's INSERT after DIST: TYPE, its three values, dry / wet (fx.c) */
+    P_FTYPE,                                   /* ANALOG's filter TYPE: LP (as before) / BP / HP (eng_analog.c) */
+    P_ESYNC,                                   /* ENV SYNC: ATK DEC REL as note values of the tempo (voice.c) */
+    P_LSYNC, P_LTRIG, P_LPOL,                  /* LFO 2: SYNC to the tempo, TRIG (NOTE / FREE), POL (BI / UNI) (voice.c) */
+    P_CENT,                                    /* maqam: the track's fine tune, -63..+63 cents (lockable: a step's bend; voice.c) */
     P_E0, P_E1, P_E2, P_E3, P_E4, P_E5, P_E6, P_E7,
     P_COUNT
 };
@@ -69,7 +87,15 @@ enum {                          /* global parameters */
     G_DUST, G_DUCK, G_FILT,     /* the master bus: lo-fi / vinyl, the kick ducking the parts, the DJ filter (fx.c) */
     G_ROLL,                     /* note repeat rate (ARP + key, seq.c) */
     G_NEWPRJ,                   /* TOOLS > NEW: a new project (GO) */
-    G_INTON,                    /* maqam: intonation, EQUAL / TRADITIONAL (pitch24.h; saved in the project's rsv[0]) */
+    G_DRDLY,                    /* SLOOP 2.5: the drums' delay send (GLO > DRUMS; a project keeps it in its own byte) */
+    G_CH1, G_CH2, G_CH3,        /* SLOOP 2.6: GLO > MIDI, the MIDI channel of synth tracks 1..3 (0 OFF, 1..16; in and out) */
+    G_CHOTH,                    /* .. and what the other channels play: 0 SEL (the selected track), 1 OFF. Settings of
+                                 * the FM-1 (with G_DRCH): not in a project (project.c, panel.c midi_set) */
+    G_TXSRC, G_TXLVL, G_TXTONE, G_TXMOVE,   /* SLOOP 2.6, GLO > TEXTURE: a looping bed under the mix (fx.c texture_*): */
+    G_TXRATE, G_TXWHEN, G_TXDUCK,           /* its source, level, tone, movement; its rate, when it plays, the DUCK pump.
+                                             * In a project (project.c: the spare bytes) */
+    G_BEND,                     /* SLOOP 2.6, GLO > MIDI 2: the pitch bend's range, 1..12 semitones (a setting of the FM-1) */
+    G_INTON,                    /* maqam: intonation, EQUAL / TRADITIONAL (pitch24.h), after upstream's last global */
     G_COUNT
 };
 
@@ -98,6 +124,8 @@ typedef struct {                 /* per-voice control-rate modulation, computed 
     int32_t cutoff;              /* 0..127 << 8 */
     int32_t shape;               /* 0..127 << 8 */
     int32_t envq15;              /* env value (for engines that use it as a mod source) */
+    int32_t fine;                /* the residual below 1/16 semitone in inc: unison detune, TUNE, the glide's
+                                  * fraction (1/4096); FM6 reads it (the others take inc) */
 } vmod_t;
 
 typedef struct {
@@ -139,6 +167,11 @@ typedef struct {
     const param_desc_t *(*desc)(const struct track *t, uint32_t k);
     /* optional: once per block and part, before its voices (also with no voice sounding) */
     void (*block)(struct track *t);
+    /* 1 = the engine's own envelopes are the voice's amplitude (FM6): voice.c renders it at 1.0 (no ADSR, no
+     * velocity; LFO -> AMP and the fades still apply; ENV is 0) and the voice ends when done() says so (once
+     * per control tick, before the render), not at the end of the ADSR's release */
+    uint8_t ownenv;
+    int (*done)(struct track *t, voice_t *v);
 } engine_t;
 
 /* ------------------------------------------------------------ track --- */
@@ -148,7 +181,7 @@ enum { ST_NOTE, ST_TIE, ST_REST };
 /* the dynamics of a note or a drum hit (2 bits each in the steps): played without velocity
  * (OCT- / OCT+ held on the drum track, the step page) or from a MIDI velocity */
 enum { LV_NORM, LV_GHOST, LV_SOFT, LV_HARD };
-typedef struct {                 /* a step of a synth part (11 bytes): up to 4 notes (POLY), time, accent, slide */
+typedef struct {                 /* a step of a synth part (10 bytes): up to 4 notes (POLY), time, accent, slide */
     uint8_t note[4];
     uint8_t n;                   /* notes in use, 0 = empty */
     uint8_t time;                /* ST_NOTE / ST_TIE / ST_REST */
@@ -156,16 +189,26 @@ typedef struct {                 /* a step of a synth part (11 bytes): up to 4 n
     uint8_t vel;
     uint8_t lvl;                 /* 2 bits per note (note k: bits 2k..2k+1): LV_* */
     uint8_t rat;                 /* 2 bits per note: the hits it plays in its step - 1 (ratchet x1..x4) */
-    int8_t cents;                /* maqam: the step's bend, -63..+63 cents, for every note (a note byte's bit 7: +50 c) */
 } step_t;
 #define DRUM_LANES 16            /* the drum track: 16 sounds, one per white key (drums.c LANE_*) */
-typedef struct {                 /* a step of the drum track (11 bytes, the size of a step_t) */
+typedef struct {                 /* a step of the drum track (10 bytes, the size of a step_t) */
     uint8_t on[2];               /* bit per lane */
     uint8_t lvl[4];              /* 2 bits per lane (lane k: byte k / 4, bits 2 (k % 4)..): LV_* */
     uint8_t rat[4];              /* 2 bits per lane: ratchet */
-    uint8_t rsv;                 /* maqam: keeps the size of a step_t */
 } dstep_t;
-_Static_assert(sizeof(step_t) == 11 && sizeof(dstep_t) == 11, "a step is 11 bytes on every track");   /* maqam: was 10 */
+_Static_assert(sizeof(step_t) == 10 && sizeof(dstep_t) == 10, "a step is 10 bytes on every track");
+/* SLOOP 2.4: per-step nudge (micro timing) and parameter locks (seq.c seq_tick / lock_step) */
+#define MICRO_MIN (-32)          /* a step's nudge in 1/64 of its length: half a step early .. */
+#define MICRO_MAX 31             /* .. just under half a step late (0 = on the grid) */
+#define NLOCK 24                 /* parameter locks per track (several may share a step: other params) */
+typedef struct {                 /* a lock: on step `step` the track's p[param] is `val` (4 bytes) */
+    uint8_t step;                /* 0xFF = a free slot */
+    uint8_t param;               /* P_* (a lockable one: p_lockable) */
+    int16_t val;
+} plock_t;
+#define LOCK_FREE 0xFFu
+/* a step's condition (SLOOP 2.4 fill, GLO + key 9 / 10): plays always, only during a fill, never during one */
+enum { FC_NORM, FC_FILL, FC_NOFILL };     /* (3: as FC_NORM) */
 
 typedef struct track {
     int16_t p[P_COUNT];
@@ -195,11 +238,23 @@ typedef struct track {
         step_t step[NSTEP];
         dstep_t dstep[NSTEP];
     };
+    int8_t micro[NSTEP];         /* each step's nudge, MICRO_MIN..MICRO_MAX (1/64 of a step; - early, + late) */
+    plock_t lock[NLOCK];         /* parameter locks, unsorted (step LOCK_FREE = a free slot) */
+    uint8_t fill[NSTEP / 4];     /* each step's condition, 2 bits (seq.c step_fill): FC_* */
+    /* the locks in force (seq.c lock_step): the params overridden now, what they were, what the lock set */
+    uint8_t lk_n;
+    uint8_t lk_param[NLOCK];
+    int16_t lk_base[NLOCK];
+    int16_t lk_set[NLOCK];
     uint32_t seq_abs;            /* the step of the transport grid last played (seq.c trk_grid), SEQ_NONE */
+    int16_t bend, bend_s;        /* 2.6: MIDI pitch bend -8192..8191 (seq.c), and as it glides (voice.c, a block at a time) */
     uint16_t seq_idx;            /* its index in the pattern */
+    uint8_t seq_den;             /* the DIV it was played on (a DIV change waits for the next step) */
+    uint8_t arp_den;             /* the same for the arp's RATE */
     uint8_t seq_notes[4];        /* sounding seq notes */
     uint8_t seq_n;
     uint8_t seq_hold;            /* last step slides: keep the notes until the next step */
+    uint8_t seq_skip;            /* the step playing failed its fill condition: nothing of it sounds */
     uint8_t slide_glide;         /* next legato note glides (slide) */
     uint32_t seq_off;            /* units to the note-off of the step's notes */
     uint8_t seq_active;          /* any step programmed */
@@ -218,7 +273,6 @@ typedef struct track {
     uint32_t pass;               /* loops played since PLAY (a recording pass: one undo) */
     /* mono */
     uint8_t mono_stack[8];
-    int8_t mono_cents[8];        /* maqam: the step bend of each held note (a fallback to it keeps its bend) */
     uint8_t nmono;
     uint8_t mono_note;           /* note the MONO / LEGATO / UNISON voice(s) play, 0 = none */
     uint8_t rr;                  /* POLY ROTATE: next voice to try */
@@ -228,12 +282,16 @@ typedef struct track {
     int32_t dist_hp, dist_lp1, dist_lp2;   /* DIST insert state (fx.c) */
     int32_t att;                 /* mute / solo fade: attenuation, Q15 (0 = heard; fx.c mix_part, drums_mix) */
     uint8_t dist_on;             /* DIST was on in the last block (its states restart when it comes on) */
-    uint8_t tail;                /* blocks to mix after the last voice (the DIST tail) */
+    uint8_t tail;                /* blocks to mix after the last voice (the DIST / INSERT tail) */
+    uint8_t ins_run;             /* 2.6: the INSERT runs (or fades out) (fx.c track_insert) */
     int16_t armp, aholdp;        /* P_AMODE / P_AHOLD as last seen by the ISR */
     /* engine switch (voice.c engine_block): the old engine's voices fade out, then it switches */
     uint8_t xf_on, xf;           /* fading; blocks of the fade still to render */
     int16_t pe_old[8];           /* P_E0..P_E7 of the sounding engine: the fade renders with these */
-    int8_t xp_cents[4];          /* maqam: their step bends */
+    int16_t p_old[P_COUNT];      /* 2.6: the whole sound before a preset loaded (voice.c sound_change): the fade's */
+    uint8_t pold;                /* 1: a preset loaded, the sounding voices fade out with p_old first */
+    uint16_t ins_res;            /* 2.6: |the INSERT's last output| (fx.c: its tail runs until it is ~0) */
+    uint8_t ins_xt;              /* 2.6: the blocks it ran past its tail for that (at most 255) */
     uint8_t xp_n, xp_note[4], xp_vel[4];   /* note-ons during the fade, played on the new engine */
 } track_t;
 
@@ -264,13 +322,33 @@ static song_t song;
 #endif
 #define BEAT_U ((uint32_t)FS * 60u)
 static volatile uint32_t clk_beat, clk_pos;
-static const uint8_t DIV_DEN[6] = {1, 2, 4, 8, 3, 6};    /* N_DIV: beats = 1 / DEN */
-static uint32_t div_units(uint32_t div) { return BEAT_U / DIV_DEN[div % 6u]; }
-/* length of one division (N_DIV order) in samples at the song tempo (rounded down) */
-static uint32_t div_samples(uint32_t div)
+static const uint8_t DIV_DEN[6] = {1, 2, 4, 8, 3, 6};    /* N_DIV 0..5: beats = 1 / DEN */
+#define NDIV_SHORT 6u            /* the divisions inside a beat (N_DIV, the arp's RATE) */
+#define NDIV_STEP 9u             /* N_SDIV: + 1/2 note, a bar, two bars (whole beats: DIV_BEATS) */
+#define NDIV_DLY 8u              /* N_DLY: + 1/8 and 1/16 dotted */
+static const uint8_t DIV_BEATS[3] = {2, 4, 8};
+/* a step's length in clock units (N_SDIV order; the arp's RATE uses 0..5) */
+static uint32_t div_units(uint32_t div)
 {
-    return div_units(div) / (uint32_t)song.g[G_BPM];
+    return div < NDIV_SHORT ? BEAT_U / DIV_DEN[div] : BEAT_U * DIV_BEATS[(div - NDIV_SHORT) % 3u];
 }
+/* the delay's TIME in clock units (N_DLY order) */
+static uint32_t dly_units(uint32_t d)
+{
+    return d < NDIV_SHORT ? BEAT_U / DIV_DEN[d] : d == NDIV_SHORT ? BEAT_U * 3u / 4u : d == NDIV_SHORT + 1u ? BEAT_U * 3u / 8u
+                                                                                         : BEAT_U * 3u / 2u;   /* 1/4D (2.6) */
+}
+/* length of one step (N_SDIV order) in samples at the song tempo (rounded down) */
+static uint32_t div_samples(uint32_t div) { return div_units(div) / (uint32_t)song.g[G_BPM]; }
+/* length of the delay's TIME (N_DLY order) in samples at the song tempo (rounded down) */
+static uint32_t dly_samples(uint32_t d) { return dly_units(d) / (uint32_t)song.g[G_BPM]; }
+/* SLOOP 2.6, after Felucca 1.5.1: REV THROW / ECHO THROW (FX held + OCT- / OCT+, ui_input.c): while held, every
+ * track's send to the reverb / the delay goes full, gliding in and out (~12 ms); ECHO THROW also takes the delay's FDBK
+ * up to 70 % if it is lower. The song's values never change, nothing is saved or recorded. thr_req: bit 0 the reverb,
+ * bit 1 the echo (the UI); thr_rev, thr_dly: the glide now, Q15 (fx.c mix_block, a block at a time) */
+static volatile uint8_t thr_req;
+static int32_t thr_rev, thr_dly;
+static inline int32_t send_thr(int32_t s, int32_t g) { return g ? s + (((127 * 258 - s) * g) >> 15) : s; }   /* s 0..32766 */
 #define TSEL (&trk[song.sel])    /* the selected track */
 #define TDRUM (&trk[TRK_DRUM])
 static int is_drum(const track_t *t) { return t == TDRUM; }

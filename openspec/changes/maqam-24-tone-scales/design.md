@@ -2,6 +2,8 @@
 
 ## Context
 
+*This change was planned on SLOOP 2.3 and merged onto SLOOP 2.6. **D17 supersedes D10, D10a and D12** and amends D11; the Migration Plan below is the post-merge one.*
+
 See proposal.md (Why) and the four specs for requirements. The current state that shapes the approach:
 
 - **Pitch path.**
@@ -217,6 +219,20 @@ Values are musical facts typed from primary sources, with the source noted in ea
 
 A dev-time script, not part of the build, may query DiArMaqAr's public API to re-check the ARAB offsets after edits.
 
+### D17. Merged onto SLOOP 2.6
+Upstream moved from 2.3 to 2.6 while this change was in flight, adding parameter locks, per-step nudge and fills, FM6/PHYS/NOISE engines, MIDI pitch bend, CHORD+, and the SCL button renamed SEL. The merge resolved four clashes:
+- **Step bends become CENT locks (supersedes D10, D10a).** Upstream's project is 3816 of 3840 bytes, so an 11th step byte no longer fits. CENT is a lockable track parameter on SEL 2 (inserted before `P_E0`, so `P_E0` = 64, as upstream's preset-by-count rule expects). A step bend is upstream's own parameter lock: hold SEQ + step, ALGORITHM picks CENT, PRESETS sets it. `step_t` is back to 10 bytes; the STEP 2 page, the tile `±Nc` and the per-note `mono_cents` / `xp_cents` arrays are gone. Locks already give the step's CENT to whatever plays during it.
+- **No fork format magic (supersedes D10's FUN5).** Upstream already used FUN5 and FUN6. The fork keeps upstream's FUN6 magic and layout byte for byte and adds a 12-byte block (`"MQ"`, version 1, flags: INTON and each part's root half-bit, CENT per track, check byte) in the `g[]` slots `G_SLOT`, `G_LOAD`, `G_SAVE`, `G_SYNC`, `G_MIDI` and `G_ROUTE`, which upstream's loader skips. ROOT is stored as its semitone. A CENT lock is stored as an ordinary lock (id 71), which upstream firmware drops. Upstream firmware loads fork projects as 12-tone; fork firmware loads upstream projects with defaults. If upstream ever starts loading those `g[]` slots, the block moves (see Risks).
+- **Editor protocol 11 (supersedes D12).** That is upstream's 10 plus one quarter-tone-bits byte at the end of a synth step: `n, note0..3, time, flags, vel, lvl, hi, rat, qbits`. Bends travel as locks. User-preset patterns keep the 3-byte Q mask.
+- **Pitch sum.** Our quarter tone, CENT and intonation (`pitch24_set`, `bend_fine`) sit next to upstream's MIDI pitch bend (`bendq`) and its `m.fine`, so every engine, FM6 included, gets both.
+
+Also changed in the merge:
+- **Glyphs (amends D11).** Upstream's `font_test` fixes every glyph from 32 to 255, so the half-flat and half-sharp are drawn from control codes 1 and 2 by a hook in `cv_text`, in both fonts.
+- **Chords.** CHORD+ (strum, voice leading, inversions) was rewritten on the 24-tone masks. WEST output is identical.
+- **MIDI.** MIDI-entered steps and per-track MIDI channels keep MIDI notes plain 12-tone.
+- **FM6.** `eng_fm6.c` takes the semitone of a note.
+- **Upstream's audio preview.** `sloop-preview.wasm` and the offline editor are kept. The preview is still upstream's build (no CENT) until it is rebuilt with `tools/build_preview.py`, which needs `emcc` (task 9.4).
+
 ## Future work (not in this change)
 - **Tuning profiles.** More `tune[]` columns selected by the intonation setting: Cairo 1929 (Egyptian, measured), Mukhtār 1944 and Meshshāqa 1899. Every one measured stays within ±27 c.
 - **Scala `.scl` / `.kbm` import and export** in the emulator and the web editor. The scale-file format already uses Scala value syntax.
@@ -227,7 +243,7 @@ A dev-time script, not part of the build, may query DiArMaqAr's public API to re
 ## Risks / Trade-offs
 
 - **[Risk] A missed `& 127` somewhere silently drops quarter tones.** → Grep-driven audit task, plus a host test that runs the Q flag through key → record → step → play → arp → user preset.
-- **[Risk] The size of the `FUN5` project breaks the `.noinit` assert.** → Compute it from `sizeof` in `project_test.c` before merging. Fallback: pack Q differently (no change) or reduce `rsv`.
+- **[Risk] Upstream starts loading the `g[]` slots that hold the MQ block, or fills its spare bytes.** → `project_test` asserts the block's slots and the FUN6 size. On the next upstream merge, check its loader's skip list; if it changes, move the block (or into a separate storage object).
 - **[Risk] Users' muscle memory for OCT− / OCT+ (press vs release).** → Release is near-immediate. Document it in SLOOP.md. Drum-track behavior is unchanged.
 - **[Risk] The musicology of the tables (descending forms, AEU commas, al-Ṣabbāgh ratios, JI swaras) is wrong in places.** → The scale files are readable and cite their sources. Three independent references were cross-checked (D16). Before release, check the al-Ṣabbāgh ratios against the printed source and ask a practitioner to review the 36 non-Western rows. Fixes are data-only.
 - **[Trade-off] Intonation follows the current scale, not the recorded one.** → Documented; consistent with D4.
@@ -237,14 +253,14 @@ A dev-time script, not part of the build, may query DiArMaqAr's public API to re
 
 ## Migration Plan
 
-1. Firmware loads FUN1..FUN4 through the importers into FUN5 in RAM. Saving always writes FUN5.
-2. Autosave and backups written by this firmware are FUN5. Going back to older firmware cannot read them. The release notes must tell users to export a backup before updating, as is already done for format changes.
-3. The web editor detects the protocol version and degrades gracefully against older firmware (no cents column, 16 scales).
+1. Firmware loads every upstream format (FUN1..FUN6) through upstream's importers. A project without a valid MQ block gets TRADITIONAL intonation, semitone roots and CENT 0. Saving always writes FUN6 with the MQ block.
+2. SLOOP 2.6 firmware can open the fork's projects and backups: quarter tones fold to semitones, and the block and CENT locks are ignored. No backup is needed to go back, though one is still sensible.
+3. The pre-merge dev format "FUN5" (11-byte steps) was never released and is not read.
+4. The web editor detects protocol 11 and sends or expects no quarter-tone byte from older firmware.
 
 ## Open Questions
 
 - The exact pixel design of the two glyphs (to be settled while drawing them).
-- Whether a non-zero bend shows as `±Nc` or as a dot on 16-tile step pages when space is tight (decided on the device).
 
 ## Appendix: scale data (expected generator output)
 

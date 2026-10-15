@@ -89,7 +89,7 @@ SLOOP SHALL offer a global intonation setting with two values, EQUAL and TRADITI
 
 - In EQUAL, every scale SHALL sound on the plain 24-tone grid: no per-degree offsets are applied. Step cent bends still apply.
 - In TRADITIONAL, the per-degree offsets SHALL apply.
-- While SCL is held, turning the ALGORITHM encoder SHALL switch between the two, and the SCL screen SHALL show the current value.
+- While SEL is held, turning the ALGORITHM encoder SHALL switch between the two, and the SEL screen SHALL show the current value.
 
 #### Scenario: Hear the difference
 - **WHEN** TURK Rast's third is held on C and the intonation is switched from TRADITIONAL to EQUAL
@@ -104,7 +104,7 @@ SLOOP SHALL offer a global intonation setting with two values, EQUAL and TRADITI
 - **THEN** the intonation is TRADITIONAL
 
 ### Requirement: Any scale on any root
-Choosing a scale SHALL NOT change the root. Every scale SHALL keep its intervals and intonation on any of the 24 roots. For non-WEST scales, the SCL screen SHALL show the scale's traditional home tonic as a hint.
+Choosing a scale SHALL NOT change the root. Every scale SHALL keep its intervals and intonation on any of the 24 roots. For non-WEST scales, the SEL screen SHALL show the scale's traditional home tonic as a hint.
 
 #### Scenario: Ajam on C
 - **WHEN** the root is C and ARAB Ajam is selected
@@ -136,27 +136,27 @@ The build SHALL fail, naming the scale and the problem, if:
 - **THEN** the build fails and names the missing scale
 
 ### Requirement: Scale names fit the screens
-Each scale SHALL have a code of up to 5 characters, unique across all 52 scales, for parameter pages and the web editor. It SHALL also have a name of up to 8 characters for the SCL screen. The Turkish Rast and Saba codes SHALL be distinguished from the Arabic ones.
+Each scale SHALL have a code of up to 5 characters, unique across all 52 scales, for parameter pages and the web editor. It SHALL also have a name of up to 8 characters for the SEL screen. The Turkish Rast and Saba codes SHALL be distinguished from the Arabic ones.
 
 #### Scenario: Unique codes
 - **WHEN** all 52 codes are listed
 - **THEN** none is longer than 5 characters, and no two are equal
 
-### Requirement: Choosing a set and a scale in the SCL layer
-While SCL is held:
+### Requirement: Choosing a set and a scale in the SEL layer
+While SEL is held:
 
 - The PRESETS encoder SHALL cycle WEST, TURK, ARAB, INDIA and select the first scale of the chosen set.
 - KNOB2 SHALL step through the scales of the current set only, wrapping at both ends.
-- The SCL screen SHALL show the set and the scale name.
+- The SEL screen SHALL show the set and the scale name.
 
 No new value SHALL be saved: the set follows from the scale.
 
 #### Scenario: Next set
-- **WHEN** SCL is held, WEST MAJ is selected and PRESETS is turned one step clockwise
+- **WHEN** SEL is held, WEST MAJ is selected and PRESETS is turned one step clockwise
 - **THEN** TURK's first scale is selected
 
 #### Scenario: Stay within the set
-- **WHEN** SCL is held with the last ARAB scale selected and KNOB2 is turned clockwise
+- **WHEN** SEL is held with the last ARAB scale selected and KNOB2 is turned clockwise
 - **THEN** the first ARAB scale is selected
 
 ### Requirement: Web editor scale list

@@ -6,7 +6,7 @@
   The panel drawing, the hit-target / touch system, knob drag and wheel, the latch, the computer
   keyboard map, the canvas drawing, the start button and the worklet loop are ported from
   fm1-x0x/web/emu (https://github.com/charlesvestal/fm1-x0x), (c) Charles Vestal, GPL-3.0-only.
-  Adapted for SLOOP: SCL button, Web MIDI in, IndexedDB flash, modalities panel.
+  Adapted for SLOOP: SEL button, Web MIDI in, IndexedDB flash, modalities panel.
 -->
 <html lang="en">
 <head>
@@ -132,7 +132,7 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
     <h2>Mouse and touch</h2>
     <ul>
       <li>Drag a knob up or down, or scroll over it. Click or touch buttons and keys; several fingers work on a touch screen.</li>
-      <li><kbd>Shift</kbd>-click (or right-click) a button to hold it, click again to let go: latch SCL, then play keys.</li>
+      <li><kbd>Shift</kbd>-click (or right-click) a button to hold it, click again to let go: latch SEL, then play keys.</li>
     </ul>
   </div>
   <div>
@@ -140,12 +140,12 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
     <ul>
       <li>White keys: <kbd>Q</kbd>–<kbd>I</kbd>, <kbd>A</kbd>–<kbd>K</kbd>. Black keys: <kbd>1</kbd>–<kbd>0</kbd>, <kbd>-</kbd>.</li>
       <li><kbd>Space</kbd> PLAY, <kbd>Enter</kbd> REC, <kbd>Esc</kbd> HOME, <kbd>Z</kbd> / <kbd>X</kbd> OCT− / OCT+, <kbd>↑</kbd> <kbd>↓</kbd> SELECT (tempo).</li>
-      <li>Layers, held: <kbd>,</kbd> FX, <kbd>.</kbd> SCL, <kbd>/</kbd> ENV, <kbd>;</kbd> LFO, <kbd>'</kbd> EDIT, <kbd>\</kbd> GLO, <kbd>[</kbd> SAVE, <kbd>]</kbd> ARP, <kbd>=</kbd> SEQ.</li>
+      <li>Layers, held: <kbd>,</kbd> FX, <kbd>.</kbd> SEL, <kbd>/</kbd> ENV, <kbd>;</kbd> LFO, <kbd>'</kbd> EDIT, <kbd>\</kbd> GLO, <kbd>[</kbd> SAVE, <kbd>]</kbd> ARP, <kbd>=</kbd> SEQ.</li>
     </ul>
   </div>
   <div>
     <h2>Playing SLOOP</h2>
-    <p>Every function button is a layer: hold FX, SCL, EDIT, GLO, SAVE, ARP or SEQ and the 16 white keys and the four knobs change job.
+    <p>Every function button is a layer: hold FX, SEL, EDIT, GLO, SAVE, ARP or SEQ and the 16 white keys and the four knobs change job.
       Tap HOME for the tracks, hold it for the menu (LIGHTS, KEYS, NOTES). ALGORITHM picks the track, PRESETS the sound.
       Your projects and settings stay in this browser.</p>
   </div>
@@ -425,7 +425,7 @@ registerProcessor("sloop", Sloop);
 const NS = "http://www.w3.org/2000/svg";
 const MOCK = new URLSearchParams(location.search).get("mock") === "1";
 // Logical button bits (firmware/src/panel.c) and encoder roles (web_enc).
-const BTN = { FX: 0, SCL: 1, ENV: 2, LFO: 3, EDIT: 4, GLO: 5, HOME: 6, SAVE: 7, ARP: 8, SEQ: 9, PLAY: 10, REC: 11, "OCT-": 12, "OCT+": 13 };
+const BTN = { FX: 0, SEL: 1, ENV: 2, LFO: 3, EDIT: 4, GLO: 5, HOME: 6, SAVE: 7, ARP: 8, SEQ: 9, PLAY: 10, REC: 11, "OCT-": 12, "OCT+": 13 };
 const ENC = { SELECT: 0, ALGORITHM: 1, PRESETS: 2, KNOB1: 3, KNOB2: 4, KNOB3: 5, KNOB4: 6 };
 const WHITE_K = [0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26];
 const BLACK_K = [1, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25];
@@ -479,7 +479,7 @@ el("rect", { x: 58, y: 258, width: 210, height: 58, rx: 14, fill: TRAY });
 button(72, 268, 82, 38, "OCT-"); button(170, 268, 82, 38, "OCT+");
 el("rect", { x: 300, y: 44, width: 236, height: 236, rx: 26, fill: "#111214" });
 el("rect", { x: 568, y: 160, width: 400, height: 140, rx: 18, fill: TRAY });
-const ROW1 = ["FX", "SCL", "ENV", "LFO", "EDIT", "GLO"], ROW2 = ["HOME", "SAVE", "ARP", "SEQ", "PLAY", "REC"];
+const ROW1 = ["FX", "SEL", "ENV", "LFO", "EDIT", "GLO"], ROW2 = ["HOME", "SAVE", "ARP", "SEQ", "PLAY", "REC"];
 for (let i = 0; i < 6; i++) {
   button(582 + i * 63, 174, 54, 48, ROW1[i]);
   if (ROW2[i] === "PLAY") button(582 + i * 63, 236, 54, 48, "PLAY", "STOP"); else button(582 + i * 63, 236, 54, 48, ROW2[i]);
@@ -624,7 +624,7 @@ KEYMAP.Minus = { key: BLACK_K[10] };
 Object.assign(KEYMAP, {
   Space: { btn: BTN.PLAY }, Enter: { btn: BTN.REC }, Escape: { btn: BTN.HOME }, KeyZ: { btn: BTN["OCT-"] }, KeyX: { btn: BTN["OCT+"] },
   // layer buttons, held (the page's own addition; the hold semantic is the firmware's)
-  Comma: { btn: BTN.FX }, Period: { btn: BTN.SCL }, Slash: { btn: BTN.ENV }, Semicolon: { btn: BTN.LFO }, Quote: { btn: BTN.EDIT },
+  Comma: { btn: BTN.FX }, Period: { btn: BTN.SEL }, Slash: { btn: BTN.ENV }, Semicolon: { btn: BTN.LFO }, Quote: { btn: BTN.EDIT },
   Backslash: { btn: BTN.GLO }, BracketLeft: { btn: BTN.SAVE }, BracketRight: { btn: BTN.ARP }, Equal: { btn: BTN.SEQ },
 });
 const typing = (e) => e.target && e.target.closest && e.target.closest("select,input,textarea,button");

@@ -55,9 +55,9 @@ static const char *const N_INTON[] = {"EQUAL", "TRAD"};   /* G_INTON */
 static const char *const N_NOTE24[24] = {"C", "C+", "C#", "Dd", "D", "D+", "D#", "Ed", "E", "Fd", "F", "F+",
                                          "F#", "Gd", "G", "G+", "G#", "Ad", "A", "A+", "A#", "Bd", "B", "Cd"};
 
-/* the same on the screen: "\xA4" is the half-flat glyph, "\xA6" the half-sharp (tools/gen_font.py; FONT_S only) */
-static const char *const N_NOTE24G[24] = {"C", "C\xA6", "C#", "D\xA4", "D", "D\xA6", "D#", "E\xA4", "E", "F\xA4", "F", "F\xA6",
-                                          "F#", "G\xA4", "G", "G\xA6", "G#", "A\xA4", "A", "A\xA6", "A#", "B\xA4", "B", "C\xA4"};
+/* the same on the screen: "\x01" is the half-flat glyph, "\x02" the half-sharp (gfx.c cv_text: codes 1 and 2, in both fonts) */
+static const char *const N_NOTE24G[24] = {"C", "C\x02", "C#", "D\x01", "D", "D\x02", "D#", "E\x01", "E", "F\x01", "F", "F\x02",
+                                          "F#", "G\x01", "G", "G\x02", "G#", "A\x01", "A", "A\x02", "A#", "B\x01", "B", "C\x01"};
 
 static inline uint32_t scale_index(const track_t *t)
 {
@@ -99,8 +99,8 @@ static inline int32_t p24_cents(const track_t *t, uint32_t note, int32_t cents)
 /* ---- scale sets in the SCL layer (task 4.1, D8): the set follows from the scale, nothing more is saved ---- */
 static const char *const N_SET[NSETS] = {"west", "turk", "arab", "india"};
 /* flat spellings for the home hint (ASCII: 'd' half-flat, '+' half-sharp) */
-static const char *const N_NOTE24F[24] = {"C", "C\xA6", "Db", "D\xA4", "D", "D\xA6", "Eb", "E\xA4", "E", "F\xA4", "F", "F\xA6",
-                                          "Gb", "G\xA4", "G", "G\xA6", "Ab", "A\xA4", "A", "A\xA6", "Bb", "B\xA4", "B", "C\xA4"};
+static const char *const N_NOTE24F[24] = {"C", "C\x02", "Db", "D\x01", "D", "D\x02", "Eb", "E\x01", "E", "F\x01", "F", "F\x02",
+                                          "Gb", "G\x01", "G", "G\x02", "Ab", "A\x01", "A", "A\x02", "Bb", "B\x01", "B", "C\x01"};
 static uint32_t scale_set_first(uint32_t set)           /* the first scale of a set */
 {
     uint32_t i;
@@ -218,12 +218,12 @@ static inline int32_t pop24(uint32_t m) { int32_t c = 0; while (m) { c += (int32
 /* key k (0..26, F3 = 53 up) -> a synth note byte: OFF chromatic, SNAP (round down from 2*semi + 1 in the
  * 24-bit mask, the modifier before the rounding: D7), WHITE (the white keys walk the degrees from C4 = the
  * root; mod after). desc picks the descending mask (D5). P24_SILENT: a black key in WHITE */
-static uint32_t kb_quant(const track_t *t, uint32_t k, uint32_t desc, int32_t mod)
+static uint32_t kb_quant(const track_t *t, uint32_t k, uint32_t desc, int32_t mod, int32_t xoct)
 {
     static const int8_t DEGREE[12] = {0, -1, 1, -1, 2, 3, -1, 4, -1, 5, -1, 6};
     int32_t n = 53 + (int32_t)k, root = t->p[P_ROOT], p;
     if (t->p[P_QUANT] == 1 && !t->p[P_CHORD]) {
-        n += 12 * song.octave + t->p[P_TRANS];
+        n += 12 * xoct + t->p[P_TRANS];
         p = scale_floor(scale_dir_mask(&SCALES[scale_index(t)], desc), root, 2 * n + 1 + mod);
     } else if (t->p[P_QUANT] == 2 || t->p[P_CHORD]) {
         const scale_def_t *sc = t->p[P_CHORD] && !t->p[P_SCALE] ? &SCALES[2] : &SCALES[scale_index(t)];
@@ -263,9 +263,9 @@ static uint32_t kb_quant(const track_t *t, uint32_t k, uint32_t desc, int32_t mo
                 }
             }
         }
-        p = 120 + root + 24 * oct + (int32_t)i + 2 * (12 * song.octave + t->p[P_TRANS]) + mod;
+        p = 120 + root + 24 * oct + (int32_t)i + 2 * (12 * xoct + t->p[P_TRANS]) + mod;
     } else {
-        p = 2 * (n + 12 * song.octave + t->p[P_TRANS]) + mod;
+        p = 2 * (n + 12 * xoct + t->p[P_TRANS]) + mod;
     }
     return note_from_p24((uint32_t)clamp_p24(p));
 }
@@ -348,10 +348,10 @@ static int32_t oct_tick(uint32_t dn, uint32_t up, uint32_t keys, uint32_t free, 
     return d;
 }
 
-/* ---- the editor's step bytes (task 7.1, protocol v7): n, note0..3 (7 bit), time, flags, vel, lvl, hi, rat, then
- * qbits (bit k: note k is a quarter tone up) and cents + 64 (0..127). 13 bytes. An older editor sends the first 8
- * or 11: the bend and the quarter tones the step has are then kept (it cannot see them: it shows the semitone) ---- */
-#define STEP_WIRE 13u
+/* ---- the editor's step bytes (protocol v11): n, note0..3 (7 bit), time, flags, vel, lvl, hi, rat, then qbits (bit k:
+ * note k is a quarter tone up). 12 bytes. A step's bend is a CENT lock (the lock messages), not a step byte. An older
+ * editor sends the first 8 or 11: a note it did not change then keeps its quarter-tone flag ---- */
+#define STEP_WIRE 12u
 static uint32_t step_wire_out(const step_t *st, uint8_t *o)
 {
     uint32_t k, q = 0;
@@ -367,10 +367,9 @@ static uint32_t step_wire_out(const step_t *st, uint8_t *o)
     o[9] = (uint8_t)(st->lvl >> 7 | (st->rat >> 7) << 1);
     o[10] = st->rat & 0x7Fu;
     o[11] = (uint8_t)q;
-    o[12] = (uint8_t)(st->cents + 64);
     return STEP_WIRE;
 }
-static void step_wire_in(step_t *st, const uint8_t *a, uint32_t na)   /* na: bytes from n on (8 .. 13) */
+static void step_wire_in(step_t *st, const uint8_t *a, uint32_t na)   /* na: bytes from n on (8 .. 12) */
 {
     uint32_t k;
     uint8_t old[4];
@@ -390,10 +389,6 @@ static void step_wire_in(step_t *st, const uint8_t *a, uint32_t na)   /* na: byt
     } else {
         st->lvl = st->rat = 0;
     }
-    if (na >= 13u) {
-        int32_t c = (int32_t)(a[12] & 0x7Fu) - 64;
-        st->cents = (int8_t)(c < -63 ? -63 : c > 63 ? 63 : c);
-    }                                                     /* (older editor: the bend stays) */
 }
 
 #endif

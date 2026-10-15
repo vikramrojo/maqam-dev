@@ -53,6 +53,7 @@
 #include "../../firmware/src/ui_draw.c"
 #include "../../firmware/src/ui_layers.c"
 #include "../../firmware/src/ui_menu.c"
+#include "../../firmware/src/ui_vis.c"              /* the visualiser (HOME on HOME, 2.4) */
 #include "../../firmware/src/ui_input.c"
 /* the flash backends of felucca.c, on the simulated flash (NOR: erase to 0xFF, programming clears bits) */
 static uint8_t flash_ok;
@@ -102,6 +103,7 @@ static void felucca_init(void)
     uint32_t i;
     for (i = 0; i < G_COUNT; i++)
         song.g[i] = GP[i].def;
+    fm6_init();                               /* every part's FM6 patch: the init voice */
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
         track_defaults(t);
@@ -117,6 +119,10 @@ static void felucca_init(void)
     song.master_q12 = 2048;
     autosave_resume();
     song.g[G_SYNC] = (int16_t)lights_sync;
+    song.g[G_MIDI] = (int16_t)lights_mout;
+    song.g[G_ROUTE] = (int16_t)lights_min;
+    song.g[G_CH1] = midi_set[0], song.g[G_CH2] = midi_set[1], song.g[G_CH3] = midi_set[2];   /* (2.6: GLO > MIDI, */
+    song.g[G_DRCH] = midi_set[3], song.g[G_CHOTH] = midi_set[4], song.g[G_BEND] = midi_set[5];   /* settings of the FM-1) */
     layers_init();
     go_home();
     ui.force = 1;

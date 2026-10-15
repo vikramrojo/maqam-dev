@@ -1,6 +1,6 @@
 # The scale screens: a visual guide
 
-How to read and work the screens for SLOOP's 52 scales (Western, Turkish, Arabic, Indian), quarter tones and step bends. The images are the firmware's own screen, rendered on a computer: what you see on the FM-1 is the same.
+How to read and work the screens for SLOOP's 52 scales (Western, Turkish, Arabic, Indian), quarter tones and step bends (the CENT lock). The images are the firmware's own screen, rendered on a computer: what you see on the FM-1 is the same.
 
 Two words used throughout:
 - **Half-flat** (written `Ed` in text, and `E` with a reversed flat on the screen) is a quarter tone, 50 cents, below the note: E half-flat sits halfway between E♭ and E.
@@ -10,14 +10,14 @@ There are two ways into the scales:
 
 | | How | What it changes |
 |---|---|---|
-| **The KEY layer** | **hold SCL** | the key of the whole song (all three synth tracks), the scale set, the tuning |
-| **The SCL page** | **tap SCL** | the selected track's root, scale, keys mode and chords |
+| **The KEY layer** | **hold SEL** | the key of the whole song (all three synth tracks), the scale set, the tuning |
+| **The SEL page** | **tap SEL** | the selected track's root, scale, keys mode and chords |
 
 Most of the time you want the **KEY layer**.
 
 ---
 
-## 1. The KEY layer (hold SCL)
+## 1. The KEY layer (hold SEL)
 
 ![The KEY layer, ARAB Rast on C](assets/screens/scales/06-layer-arab-rast-C-white.png)
 
@@ -37,7 +37,7 @@ What the tiles show:
 - **White text** marks a key whose note, or a quarter tone either side of it, is in the scale. In Rast, E is lit because E half-flat is right next to it.
 - **Dim text** marks a key with no scale note nearby. Rast uses them all; see Segah below for dim ones.
 
-**While SCL is held:**
+**While SEL is held:**
 
 | Control | Does |
 |---|---|
@@ -57,7 +57,7 @@ What the tiles show:
 
 For Turkish, Arabic and Indian scales, the label over KNOB 2 shows the scale's **traditional home**, here `home Bb` for Ajam. It is **only a hint**:
 - Choosing a scale never changes your root. Ajam plays from C here.
-- To play it at home, press B♭ while SCL is held.
+- To play it at home, press B♭ while SEL is held.
 - Any scale works from any root, with the same intervals and tuning.
 
 ### The three keys modes (KNOB 3)
@@ -94,9 +94,9 @@ The dim tiles here (D, E, A, B) are keys with no note of Segah nearby. `home` sh
 
 ---
 
-## 2. The SCL page (tap SCL)
+## 2. The SEL page (tap SEL)
 
-![The SCL page: WEST major on C](assets/screens/scales/01-page-west-major-C.png)
+![The SEL page: WEST major on C](assets/screens/scales/01-page-west-major-C.png)
 
 The top row has four values, one per knob: **ROOT**, **SCL** (scale), **QNT** (keys mode) and **CHORD**.
 - They apply to **the selected track only**.
@@ -157,12 +157,21 @@ When the label would be too long, the `c` is dropped.
 
 The picture underneath is the pattern: each short line is a step's pitch, and the dots mark the steps.
 
-### STEP 2 (tap SEQ again): the bend
+### The bend: a CENT lock (hold a step in the SEQ layer)
 
-![STEP 2: KNOB 2 CENT, here −5 cents](assets/screens/scales/13-page-step2-cent.png)
+![A step's bend: here CENT locked to −5 cents](assets/screens/scales/13-page-step2-cent.png)
+
+*(The picture is of the earlier STEP 2 page and will be re-rendered.)* A step's bend is **CENT**, a track parameter (SEL 2, −63 to +63 cents) that can be **locked** on a step like any other sound parameter:
 
 | Control | Does |
 |---|---|
+| **Step held** + **PRESETS** | makes the lock at the track's current value, then moves it: one cent per detent |
+| **ALGORITHM** | steps through the lockable parameters until the title line reads *lock cent* |
+| **OCT−** with the step held | clears the step's nudge, locks and condition |
+
+The bend applies to every note of the step, so a chord bends as a whole. In TRADITIONAL tuning it **adds** to the scale's own tuning, up to ±100 cents in total. Bends (locks) and quarter tones are saved with the project, and the web editor lists the CENT lock in the step detail. Turned on the SEL 2 page, **CENT** is the track's fine tune for every step.
+
+---|---|
 | **KNOB 1 STEP** | which step |
 | **KNOB 2 CENT** | the step's bend, from **−63 to +63 cents**, one cent per detent |
 
@@ -173,12 +182,12 @@ The bend applies to every note of the step, so a chord bends as a whole. In TRAD
 ## Quick recipes
 
 - **Play a maqam in two moves.**
-  1. Hold **SCL**, then:
+  1. Hold **SEL**, then:
      - turn **PRESETS** to `arab`;
      - turn **KNOB 2** to the maqam;
      - set **KNOB 3** to `white`;
      - press the root key.
   2. Let go and play the white keys up and down.
-- **Hear the traditional tuning.** Hold a note, hold SCL, and turn **ALGORITHM** left (`equal`) then right (`trad`).
+- **Hear the traditional tuning.** Hold a note, hold SEL, and turn **ALGORITHM** left (`equal`) then right (`trad`).
 - **One quarter tone anywhere.** On a synth track, hold **OCT−** (lower) or **OCT+** (higher) and press the key.
-- **Fine-tune one step.** Tap **SEQ** twice (STEP 2), pick the step with KNOB 1, and turn **KNOB 2 CENT**.
+- **Fine-tune one step.** In the SEQ layer hold the step, turn **PRESETS** once (a lock), turn **ALGORITHM** to *cent*, then **PRESETS** for the bend.

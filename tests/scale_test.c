@@ -238,11 +238,11 @@ static void scale_table_test(void)
         param_format(&TP[P_ROOT], 0, val, &unit);
         assert(!strcmp(val, "C") && TP[P_ROOT].max == 23);
         param_format(&TP[P_ROOT], 7, val, &unit);
-        assert(!strcmp(val, "E\xA4"));
+        assert(!strcmp(val, "E\x01"));
         param_format(&TP[P_ROOT], 8, val, &unit);
         assert(!strcmp(val, "E"));
         param_format(&TP[P_ROOT], 23, val, &unit);
-        assert(!strcmp(val, "C\xA4"));
+        assert(!strcmp(val, "C\x01"));
     }
     {   /* task 4.3: what the editor's DESC reply for SCALE is made of (editor.c ed_handle ED_DESC: F_ENUM, names[0..max],
          * at most 64, each ed_str(name, 8) = name + a 0 byte; the frame: 5 header, scope / id / fmt, min / max / def, label,
@@ -380,7 +380,8 @@ static void noncontiguous_test(void)
 }
 #endif
 
-/* maqam (task 7.1): the editor's step bytes: E-half-flat (D#|Q) with +7 cents round-trips; an older editor keeps them */
+/* maqam (protocol v11): the editor's step bytes: E-half-flat (D#|Q) round-trips in the quarter-tone bits; an older editor keeps them.
+ * (A step's bend is a CENT lock: the lock messages, not a step byte.) */
 static void editor_step_test(void)
 {
     step_t a, b;
@@ -388,29 +389,23 @@ static void editor_step_test(void)
     uint32_t i, n;
     memset(&a, 0, sizeof a);
     a.n = 3; a.note[0] = 63u | NOTE_Q; a.note[1] = 64; a.note[2] = 127u | NOTE_Q; a.time = ST_NOTE; a.flags = SF_ACCENT; a.vel = 99;
-    a.lvl = 0xB1; a.rat = 0x8E; a.cents = 7;
+    a.lvl = 0xB1; a.rat = 0x8E;
     n = step_wire_out(&a, w);
-    assert(n == 13u && w[11] == 5u && w[12] == 71u && w[1] == 63u && w[3] == 127u);          /* Q bits 0 and 2, 7 + 64 */
+    assert(n == 12u && STEP_WIRE == 12u && w[11] == 5u && w[1] == 63u && w[3] == 127u);        /* Q bits 0 and 2 */
     for (i = 0; i < n; i++)
         assert(w[i] < 128u);                                                                /* every byte is 7-bit safe */
     memset(&b, 0, sizeof b);
     step_wire_in(&b, w, n);
     assert(!memcmp(&a, &b, sizeof a));
-    a.cents = -63; n = step_wire_out(&a, w); assert(w[12] == 1u);
-    step_wire_in(&b, w, n); assert(b.cents == -63);
-    w[12] = 0; step_wire_in(&b, w, n); assert(b.cents == -63);                              /* -64 clamps */
-    w[12] = 127; step_wire_in(&b, w, n); assert(b.cents == 63);
-    /* an older editor writes 11 bytes (v5) or 8 (v1): the bend stays, a note it did not change keeps its quarter tone */
-    n = step_wire_out(&a, w);
-    a.cents = 12;
+    /* an older editor writes 11 bytes (v5) or 8 (v1): a note it did not change keeps its quarter tone */
     memcpy(&b, &a, sizeof b);
     w[5] = ST_NOTE; w[7] = 50;                                                              /* it changes the velocity */
     step_wire_in(&b, w, 11);
-    assert(b.cents == 12 && b.note[0] == (63u | NOTE_Q) && b.note[2] == (127u | NOTE_Q) && b.vel == 50 && b.note[1] == 64);
+    assert(b.note[0] == (63u | NOTE_Q) && b.note[2] == (127u | NOTE_Q) && b.vel == 50 && b.note[1] == 64);
     w[1] = 62;                                                                              /* ... and a note */
     step_wire_in(&b, w, 8);
-    assert(b.note[0] == 62 && b.cents == 12 && b.lvl == 0 && b.rat == 0);
-    puts("editor: a step with E-half-flat and +7 c round-trips in the 13 step bytes (v7); an older editor keeps the bend and the quarter tones");
+    assert(b.note[0] == 62 && b.lvl == 0 && b.rat == 0);
+    puts("editor: a step with E-half-flat round-trips in the 12 step bytes (protocol v11); an older editor keeps the quarter tones");
 }
 
 /* maqam review regression: WHITE keeps one layout in both directions; a degree the played form lacks becomes its
@@ -426,25 +421,25 @@ static void white_direction_test(void)
     {
         const uint32_t DOWN[8] = {60, 62, 63, 65, 67, 68, 70, 72}, UP[8] = {60, 62, 62, 65, 67, 68, 68, 72};
         for (k = 0; k < 8u; k++)
-            assert(kb_quant(t, KEYS[k], 1, 0) == DOWN[k] && kb_quant(t, KEYS[k], 0, 0) == UP[k]);
-        assert(kb_quant(t, 8, 0, 0) == P24_SILENT && kb_quant(t, 8, 1, 0) == P24_SILENT);             /* black keys stay silent */
-        assert(kb_quant(t, 0, 0, 0) < 60u && kb_quant(t, 26, 1, 0) > 72u);                            /* the layout goes on across octaves */
+            assert(kb_quant(t, KEYS[k], 1, 0, 0) == DOWN[k] && kb_quant(t, KEYS[k], 0, 0, 0) == UP[k]);
+        assert(kb_quant(t, 8, 0, 0, 0) == P24_SILENT && kb_quant(t, 8, 1, 0, 0) == P24_SILENT);             /* black keys stay silent */
+        assert(kb_quant(t, 0, 0, 0, 0) < 60u && kb_quant(t, 26, 1, 0, 0) > 72u);                            /* the layout goes on across octaves */
     }
     t->p[P_SCALE] = (int16_t)sc_code("YAMAN");                            /* up C D E F# A B (no Pa), down adds G */
     {
         const uint32_t DOWN[8] = {60, 62, 64, 66, 67, 69, 71, 72}, UP[8] = {60, 62, 64, 66, 66, 69, 71, 72};
         for (k = 0; k < 8u; k++)
-            assert(kb_quant(t, KEYS[k], 1, 0) == DOWN[k] && kb_quant(t, KEYS[k], 0, 0) == UP[k]);
+            assert(kb_quant(t, KEYS[k], 1, 0, 0) == DOWN[k] && kb_quant(t, KEYS[k], 0, 0, 0) == UP[k]);
     }
     t->p[P_SCALE] = (int16_t)sc_code("RAST");                             /* 7 / 7: as before */
-    assert(kb_quant(t, 18, 0, 0) == (70u | NOTE_Q) && kb_quant(t, 18, 1, 0) == 70u);
+    assert(kb_quant(t, 18, 0, 0, 0) == (70u | NOTE_Q) && kb_quant(t, 18, 1, 0, 0) == 70u);
     for (k = 0; k < 8u; k++)
         if (KEYS[k] != 18)
-            assert(kb_quant(t, KEYS[k], 0, 0) == kb_quant(t, KEYS[k], 1, 0));
+            assert(kb_quant(t, KEYS[k], 0, 0, 0) == kb_quant(t, KEYS[k], 1, 0, 0));
     /* chord mode walks the same layout */
     t->p[P_SCALE] = (int16_t)sc_code("ASAVR");
     t->p[P_CHORD] = 1;
-    assert(kb_quant(t, 11, 0, 0) == 62u && kb_quant(t, 11, 1, 0) == 63u);
+    assert(kb_quant(t, 11, 0, 0, 0) == 62u && kb_quant(t, 11, 1, 0, 0) == 63u);
     t->p[P_CHORD] = 0;
     t->p[P_QUANT] = 0;
     puts("scales: WHITE: one layout up and down (Asavari 5/7, Yaman 6/7: a missing degree gives the nearest, lower on a tie), Rast unchanged ok");

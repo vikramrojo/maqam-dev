@@ -14,12 +14,14 @@ static int role_of(const char *n)
     if (has(n, "BASS") || has(n, "808") || has(n, "ACID") || has(n, "REESE") || has(n, "WOBBLE") || has(n, "SUB") || has(n, "BOOM"))
         return R_BASS;
     if (has(n, "PAD") || has(n, "STR") || has(n, "CHOIR") || has(n, "OOH") || has(n, "ORGAN") || has(n, "ORGN") || has(n, "GOSPEL") ||
-        has(n, "B3") || has(n, "CLOUD") || has(n, "HAZE") || has(n, "ATMOS"))
+        has(n, "B3") || has(n, "CLOUD") || has(n, "HAZE") || has(n, "ATMOS") || has(n, "ENSEMBLE") || has(n, "DRONE") ||
+        has(n, "SHIMMER") || has(n, "OCEAN") || has(n, "RISER") || has(n, "WIND") || has(n, "HISS") || has(n, "VINYL") ||
+        has(n, "RAIN") || has(n, "BOWL") || has(n, "BOW") || has(n, "TANPURA"))
         return R_HELD;
     if ((has(n, "STAB") && !has(n, "HORN") && !has(n, "STRING")) || has(n, "CHORD"))
         return R_ONE;                                  /* TRIO stabs: one key plays the chord */
     if (has(n, "RHODES") || has(n, "WURLI") || has(n, "CLAV") || has(n, "KEYS") || has(n, "STAB") || has(n, "PNO") || has(n, "PIANO") ||
-        has(n, "VIBES") || has(n, "BRASS") || has(n, "HORN"))
+        has(n, "VIBES") || has(n, "BRASS") || has(n, "HORN") || has(n, "ACCORDION") || has(n, "POLY"))
         return R_COMP;
     return R_MELODY;
 }
@@ -36,7 +38,7 @@ static uint8_t held[128];
 static uint32_t off_at[128];
 static void play(uint32_t note, uint32_t vel, uint32_t off)
 {
-    trk_note_on(&trk[0], note, vel, 0);
+    trk_note_on(&trk[0], note, vel);
     held[note] = 1;
     off_at[note] = off;
 }

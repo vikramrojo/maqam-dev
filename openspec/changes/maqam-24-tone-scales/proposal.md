@@ -2,6 +2,8 @@
 
 ## Why
 
+*Rebased onto SLOOP 2.6 (October 2026): see design D17 for what changed in the merge.*
+
 SLOOP is built entirely on 12-tone equal temperament. Keys, steps, scales and voices all carry MIDI note numbers, and scales are 12-bit masks. That makes Arabic maqam, Turkish makam and Indian raga music impossible to play faithfully. These traditions need quarter tones (half-flats and half-sharps), scales whose ascending and descending forms differ, and small intonation deviations that no equal grid captures. The voice engine already resolves pitch to 1/16 semitone, and the step note byte has an unused top bit. A 24-tone pitch core can therefore be added almost for free, without giving up the 12-tone behavior existing users rely on.
 
 ## What Changes
@@ -22,9 +24,9 @@ SLOOP is built entirely on 12-tone equal temperament. Keys, steps, scales and vo
   - WHITE: the white keys walk the scale's degrees.
   - Holding OCT− / OCT+ while pressing a key on a synth track gives a half-flat / half-sharp, in chromatic mode and when choosing the root.
   - The octave shift moves from button press to button release (only when no key was played while the button was held).
-- **Scale set selection.** While SCL is held, the PRESETS encoder cycles the four sets and KNOB2 scrolls within the current set.
-- **Per-step cent bend.** Every synth step stores a signed cent offset (−63..+63), edited with a CENT knob on the step page. **BREAKING** for the project format: `FUN4` becomes `FUN5`, with an importer, and the step grows from 10 to 11 bytes.
-- **Display.** Note names on screen show half-flat and half-sharp glyphs, and cents when they are non-zero.
+- **Scale set selection.** While SEL (the scale button, called SCL before SLOOP 2.5) is held, the PRESETS encoder cycles the four sets and KNOB2 scrolls within the current set.
+- **Per-step cent bend.** A lockable track parameter CENT (−63..+63 cents) on the SEL 2 page. A step's bend is a CENT parameter lock, made with SLOOP 2.6's own lock gesture.
+- **Display.** Note names on screen show half-flat and half-sharp glyphs.
 - **Web editor.**
   - Note names parse and print quarter tones (`Ed4`, `E+4`).
   - The step SysEx messages carry cents (protocol version bump).
@@ -50,19 +52,19 @@ SLOOP is built entirely on 12-tone equal temperament. Keys, steps, scales and vo
 - **Firmware:**
   - Pitch path: `core.h` (`step_t`, `dstep_t`, `voice_t`), `voice.c` (`trk_note_on`, `voice_start`, block pitch).
   - Scales and keys: `seq.c` (`SCALE_MASK` → `SCALES`, `kb_map`, `chord_notes`, MIDI out), `params.c` (`N_SCALE`, `N_NOTE`, `P_ROOT`).
-  - Persistence: `project.c` (`FUN5` and the `FUN4` importer).
+  - Persistence: `project.c` (a tagged "MQ" extension block inside SLOOP 2.6's unchanged FUN6 format).
   - UI: `ui_input.c` (octave buttons, SCL encoders, step knobs, key lights), `ui_layers.c` (SCL layer and screen, transpose), `ui_draw.c` / `ui.c` (note names), `gfx.c` (two glyphs).
   - Other: `upreset.c` (keeps Q), `editor.c` (step fields, DESC).
 - **Build:** new scale files `scales/{west,turk,arab,india}.txt` and a new `tools/gen_scales.py` (standard library only) that emits `build/gen/scales.h`. `tools/build.py` runs it.
-- **Settings:** one new global setting (intonation), saved in the project. The `FUN5` importer sets it to TRADITIONAL.
-- **Memory:** +256 B per project (still within the `.noinit` and `ST_PAYLOAD_MAX` limits), about 2 KB of flash for the scale table, and no new RAM tables.
+- **Settings:** one new global setting (intonation), saved in the project's extension block; projects without one load as TRADITIONAL.
+- **Memory:** no change in project size (SLOOP 2.6's 3816 bytes; the extension uses fields upstream's loader skips), about 2 KB of flash for the scale table, and no new RAM tables.
 - **Web:**
   - `web/editor.html` and its copy `docs/webapp/editor/index.html`.
-  - `web/EDITOR_PROTOCOL.md` (step cents, new version).
+  - `web/EDITOR_PROTOCOL.md` (protocol 11: the step's quarter-tone bits).
   - `web/test_web.mjs`.
 - **Tests:** `tests/scale_test.c`, `project_test.c`, `seq2_test.c`, `regress.c` / `golden.txt` (the Western hashes must not change).
 - **Docs:** `SLOOP.md` and `README.md` (the scale sets, quarter-tone input, cents).
 - **Compatibility:**
-  - Old projects load (migrated).
-  - Older firmware cannot read `FUN5` projects.
+  - Projects from SLOOP 2.6 and older load unchanged, through upstream's importers.
+  - SLOOP 2.6 firmware can open this fork's projects, in 12-tone.
   - The MIDI out note numbers are unchanged.

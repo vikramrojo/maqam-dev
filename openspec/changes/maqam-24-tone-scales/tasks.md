@@ -77,14 +77,25 @@
 - [x] 7.2 `web/editor.html`: `noteName` / `parseNote` handle `d` / `+` (`Ed4`, `F+3`), add a cents column, and hide it on older firmware. Mirror to `docs/webapp/editor/index.html`. Verify that `node web/test_web.mjs` passes with new parse/print cases.
 - [x] 7.3 Mock device: the TP table lists 52 scales and ROOT 0..23; update the `web/test_web.mjs:71-75` expectations. Verify that `node web/test_web.mjs` passes.
 
+## 9. Merge onto SLOOP 2.6 (design D17)
+
+Tasks 5.1–5.4, 6.1, 7.1 and 7.2 were done on 2.3 and are partly superseded by this group: the step byte, STEP 2, FUN5 and the cents step byte are gone.
+
+- [x] 9.1 Merge upstream SLOOP 2.6 (`d315ad8`) into the branch and resolve the 19 conflicted files. Verify: no conflict markers; 182 golden renders with 0 changed against upstream's `golden.txt` (12-tone sound equals 2.6); the full host suite passes except the CPU-budget entry that clean 2.6 also fails on this machine.
+- [x] 9.2 Make step bends CENT parameter locks: lockable `P_CENT` on SEL 2, upstream's lock gesture, `step_t` back to 10 bytes. Verify with the `seq2_test` and `ui_pages_test` CENT-lock checks (the lock plays during its step, the next step is back in tune, chords bend).
+- [x] 9.3 Store projects as upstream FUN6 plus the MQ extension block, with editor protocol 11. Verify with `project_test` (FUN6 size and magic, 2.6 projects load with defaults, a damaged block falls back to defaults, a full round trip) and `node web/test_web.mjs` (qbits, CENT locks, a proto-10 device).
+- [ ] 9.4 Rebuild upstream's audio preview (`tools/build_preview.py`, needs `emcc`) so `sloop-preview.wasm` has CENT and quarter tones. Verify with `node tests/preview_test.mjs`.
+- [ ] 9.5 Re-render the `SCALES.md` screenshots on the merged firmware (SEL naming, CENT lock instead of STEP 2). Verify by viewing them.
+- [ ] 9.6 Mention the scales and CENT locks in upstream's `GUIDE.md` and the French quick start. Verify that the docs match the controls.
+
 ## 8. Integration checks
 
 - [ ] 8.1 Full `./build.sh` and `tests/run_tests.sh`. Verify that everything is green, the golden hashes are unchanged, `target_budget.py` is within budget, and the pool keeps at least 8 KiB spare.
 - [ ] 8.2 On the FM-1:
   - ARAB Rast WHITE up and down (B-half-flat / B♭);
   - TURK Segah vs Kürdi audibly different;
-  - record and replay with bends;
-  - SCL + PRESETS set cycling;
-  - a SLOOP 2.3 project and backup load and sound the same.
+  - record and replay with bends (CENT locks);
+  - SEL + PRESETS set cycling;
+  - a SLOOP 2.6 project and backup load and sound the same; a fork project opens on SLOOP 2.6 firmware in 12-tone.
 
   Verify with a written device test log in the change folder.

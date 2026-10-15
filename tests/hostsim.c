@@ -110,6 +110,7 @@ static void host_preset_req(track_t *t, uint32_t e, uint32_t pi)
         t->p[P_AMODE + i] = (int16_t)(p->arp[i] ? p->arp[i] - 1 : TP[P_AMODE + i].def);
     }
     preset_extras(t->p, p);
+    fm6_track_loaded(t);                          /* FM6: the preset's patch (ui.c apply_preset_to) */
 }
 static void host_preset(track_t *t, uint32_t e, uint32_t pi)
 {
@@ -311,7 +312,7 @@ static double tracks_cost(const uint8_t parts[NPART][3], uint32_t *busy_max)
         }
         for (p = 0; p < NPART; p++)
             for (i = 0; i < parts[p][2]; i++)
-                trk_note_on(&trk[p], NOTES[i] + 12u * p, 100, 0);
+                trk_note_on(&trk[p], NOTES[i] + 12u * p, 100);
         for (k = 0; k < 2u * FS / CTL + nblk; k++) {   /* 2 s to settle (attacks), then measure */
             uint64_t t0;
             if ((k * CTL) % (FS / 8u) < CTL)          /* 16ths at 120 BPM */
@@ -381,12 +382,12 @@ static int steal_test(const char *dir)
         uint32_t ms = f * 1000u / FS, k0 = voice_kills;
         if (f == 0)
             for (i = 0; i < 7u; i++)
-                trk_note_on(&trk[0], N1[i], 90, 0);
+                trk_note_on(&trk[0], N1[i], 90);
         if (f == FS / 2u / CTL * CTL)
-            trk_note_on(&trk[1], 74, 90, 0);          /* 8: the budget is full */
+            trk_note_on(&trk[1], 74, 90);          /* 8: the budget is full */
         if (ms >= 1000u && ms % 500u == 0u && f % (FS / 2u) < CTL && ms < 3500u) {
             p = ms / 500u % 2u ? 1u : 2u;          /* parts 2, 3 in turn: each takes a voice */
-            trk_note_on(&trk[p], 76u + ms / 250u, 90, 0);
+            trk_note_on(&trk[p], 76u + ms / 250u, 90);
         }
         mix_block(o, CTL);
         if (voice_kills != k0 && nev < 6u)
@@ -468,7 +469,7 @@ static int xfade_test(const char *dir)
                 xfade_sine(t);                     /* silent since the switch before: the sine again at once */
             if (f == on[k])
                 for (i = 0; i < 3u; i++)
-                    trk_note_on(t, CH[i] - 2u * k, 100, 0);
+                    trk_note_on(t, CH[i] - 2u * k, 100);
         }
         if (f == 9u * B)
             for (i = 0; i < 3u; i++)
@@ -479,7 +480,7 @@ static int xfade_test(const char *dir)
                 t->p[P_DIST] = t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 0;
                 panic_req |= 1u;
             } else if (k == 3u && f == sw[k] + CTL) {
-                trk_note_on(t, 60, 100, 0);           /* (c): a note during the fade */
+                trk_note_on(t, 60, 100);           /* (c): a note during the fade */
             }
         if (f == sw[3] + FS / 50u / CTL * CTL) {
             uint32_t v;
@@ -803,6 +804,7 @@ int main(int argc, char **argv)
         inst.p[P_SUS] = p->env[2]; inst.p[P_REL] = p->env[3]; inst.p[P_ED_FLT] = p->fenv;
         preset_extras(inst.p, p);
     }
+    fm6_track_loaded(&inst);                            /* FM6: the preset's patch */
     inst.p[P_VOICE] = (int16_t)mono;
     inst.p[P_CHOR] = argc > 5 ? atoi(argv[5]) : 24;      /* as felucca_init */
     inst.p[P_DLY] = argc > 5 ? atoi(argv[5]) : 28;

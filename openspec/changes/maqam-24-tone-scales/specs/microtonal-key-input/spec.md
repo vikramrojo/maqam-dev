@@ -40,14 +40,14 @@ On a synth track, a key lower than the previous key pressed on that track SHALL 
 - **THEN** the step holds B-flat and replays B-flat, whichever direction the playback is in
 
 ### Requirement: Half-flat and half-sharp modifier
-On a synth track, holding OCT− while pressing a key SHALL lower the key's note by one quarter tone, and holding OCT+ SHALL raise it by one. This modifier SHALL also apply when choosing the root in the SCL layer. On the drum track, OCT− / OCT+ SHALL keep their ghost and hard-hit behavior.
+On a synth track, holding OCT− while pressing a key SHALL lower the key's note by one quarter tone, and holding OCT+ SHALL raise it by one. This modifier SHALL also apply when choosing the root in the SEL layer. On the drum track, OCT− / OCT+ SHALL keep their ghost and hard-hit behavior.
 
 #### Scenario: Chromatic half-flat
 - **WHEN** the scale is CHR, OCT− is held and the E key is pressed
 - **THEN** E-half-flat plays
 
 #### Scenario: Root half-flat
-- **WHEN** SCL and OCT− are held and the E key is pressed
+- **WHEN** SEL and OCT− are held and the E key is pressed
 - **THEN** the root becomes E-half-flat
 
 ### Requirement: Octave shift on release
@@ -69,8 +69,8 @@ In chord mode, chords SHALL stack degrees of the current 24-tone scale. A POWER 
 - **THEN** C, E-half-flat and G sound
 
 ### Requirement: Key lights show quarter-tone scales
-In the SCL layer, a key SHALL be lit as in the scale when its semitone, or a quarter tone either side of it, is a degree of the scale.
+In the SEL layer, a key SHALL be lit as in the scale when its semitone, or a quarter tone either side of it, is a degree of the scale.
 
 #### Scenario: E lit in Rast
-- **WHEN** SCL is held with ARAB Rast on C
+- **WHEN** SEL is held with ARAB Rast on C
 - **THEN** the E key is lit as in the scale

@@ -45,7 +45,7 @@ static void draw_head(void)
     uint32_t rec = (song.rec >> song.sel) & 1u ? 2u : song.rec != 0u;   /* 2 the selected track armed, 1 another */
     uint32_t sig = (uint32_t)song.playing * 3u + rec * 5u + (uint32_t)(song.octave + 8) * 11u + song.sel * 13131u +
                    (ui.msg_t ? str_hash(7u, ui.msg) : 0u) + (uint32_t)song.g[G_BPM] * 101u + (ui.bpm_t != 0) * 31u +
-                   (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u;
+                   (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u + mlu.on * 7919u;
     if (!ui.force && sig == ui.head_sig)
         return;
     ui.head_sig = sig;
@@ -70,7 +70,9 @@ static void draw_head(void)
         x += 14;
     }
     x = cv_text(x, 1, &FONT_S, b, ui.bpm_t ? C_WHITE : C_HI);   /* white while SELECT turns it */
-    if (song.octave) {
+    if (mlu.on) {                                     /* MIDI LEARN on (2.6, GLO + F#3): in the octave's place */
+        cv_text(x + 12, 1, &FONT_S, "LEARN", C_AMB);
+    } else if (song.octave) {
         str_cpy(b, song.octave > 0 ? "+" : "", 4);
         fmt_int(b + str_len(b), song.octave);
         cv_text(x + 12, 1, &FONT_S, "OCT", C_GRAY);
@@ -143,6 +145,12 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
         key[n + 1] = (char)(' ' + (ratio < 0 ? 0 : 1 + ratio / 20));
         key[n + 2] = (char)(icon == ICON_NONE ? '~' : '!' + icon % 90u);   /* same label, other icon */
         key[n + 3] = 0;
+    }
+    if (c < 4u) {                                       /* (the big values: their own fit) */
+        str_cpy(ui.big_l[c], l, 8);
+        fit(ui.big_v[c], val, &FONT_L, 112 - (unit[0] ? 4 : 0));
+        str_cpy(ui.big_u[c], unit, 8);
+        ui.big_c[c] = vc;
     }
     if (c == ui.hot_col) {
         str_cpy(ui.focus_l, l, 8);
@@ -350,6 +358,11 @@ static uint32_t str_hash(uint32_t h, const char *s)
     return h;
 }
 
+/* a page drawn with its values large (graph_big) */
+static int big_page(const page_t *pg)            /* (2.6: the INSERT pages too: their middle stayed empty) */
+{
+    return (pg->graph == GR_NONE || pg->graph == GR_INS) && pg->scope != SC_SONG && pg->scope != SC_DRUM;
+}
 static uint32_t graph_signature(void)
 {
     const page_t *pg = cur_page();
@@ -357,6 +370,9 @@ static uint32_t graph_signature(void)
     uint32_t h = 2166136261u, i;
     if (ui.hot_t && settings.zoom)
         h = str_hash(str_hash(str_hash(h ^ 0x5555u, ui.focus_v), ui.focus_l), ui.focus_u);
+    if (!ui.home && big_page(pg))                    /* the big values: as the columns show them */
+        for (i = 0; i < 4u; i++)
+            h = str_hash(str_hash(str_hash(h ^ ui.big_c[i] * 31u, ui.big_v[i]), ui.big_l[i]), ui.big_u[i]);
     if (ui.home)
         return h ^ (ui.frame / 2u);                  /* scope: redraw every other frame */
     h ^= (uint32_t)pg->graph * 131u + TSEL->eng_req + song.sel * 7777u;
@@ -627,6 +643,33 @@ static void graph_scope(uint16_t c)
     }
 }
 
+/* SLOOP 2.4: a page without a graph (EDIT, VOICE, the DEST pages, GLOBAL, MASTER, SYSTEM...): its values
+ * large in the empty space, 2 x 2 as the knobs (KNOB 1 2 / KNOB 3 4), the one turned in white; one value
+ * alone (FILTER) across the width. The columns (draw_columns, drawn first) fill ui.big_* */
+static void graph_big(void)
+{
+    uint32_t c, n = 0;
+    for (c = 0; c < 4u; c++)
+        n += ui.big_l[c][0] != 0;
+    if (n > 1u) {
+        cv_rect(119, 6, 1, 112, C_LINE);
+        cv_rect(6, 62, 228, 1, C_LINE);
+    }
+    for (c = 0; c < 4u; c++) {
+        int32_t x0 = c & 1u ? 126 : 6, y0 = c & 2u ? 64 : 2, x;
+        if (!ui.big_l[c][0])
+            continue;
+        if (n == 1u) {                                  /* one value: in the middle */
+            x0 = (240 - text_w(&FONT_L, ui.big_v[c]) - (ui.big_u[c][0] ? text_w(&FONT_S, ui.big_u[c]) + 4 : 0)) / 2;
+            y0 = 30;
+        }
+        cv_text(x0, y0 + 2, &FONT_S, ui.big_l[c], TE_COL[c & 3u]);
+        x = cv_text(x0, y0 + 20, &FONT_L, ui.big_v[c], ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE ? C_WHITE : C_HI);
+        if (ui.big_u[c][0])
+            cv_text(x + 4, y0 + 34, &FONT_S, ui.big_u[c], C_GRAY);
+    }
+}
+
 static void draw_graph(void)
 {
     const page_t *pg = cur_page();
@@ -686,12 +729,17 @@ static void draw_graph(void)
             graph_user();
             break;
         default:
+            if (big_page(pg)) {
+                cv_oy = 0;
+                graph_big();
+            }
             break;
         }
     }
-    top = !ui.home && !drum_note && (pg->graph == GR_BROWSE || pg->graph == GR_SLOTS || pg->graph == GR_USER);   /* these draw from the top */
+    top = !ui.home && !drum_note && (pg->graph == GR_BROWSE || pg->graph == GR_SLOTS || pg->graph == GR_USER ||
+                                     big_page(pg));   /* these draw from the top */
     cv_oy = 0;
-    if (ui.hot_t && settings.zoom) {                 /* focus (menu ZOOM): the touched value, large and white */
+    if (ui.hot_t && settings.zoom && !(top && big_page(pg) && !drum_note)) {   /* (the big values show it already) */                 /* focus (menu ZOOM): the touched value, large and white */
         int32_t x;
         top = 1;
         cv_rect(0, 0, 150, 50, C_BLACK);
@@ -726,7 +774,7 @@ static void draw_foot(void)
         uint32_t i, n = 0, k = 0;
         const char *pt = pg->scope == SC_ENGINE ? e->page_title[pg->id[0] != P_E0] : 0;   /* EDIT: the engine's */
         for (i = 0; i < NPAGES; i++)
-            if (PAGES[i].fam == pg->fam) {
+            if (PAGES[i].fam == pg->fam && (page_shown(&PAGES[i]) || i == ui.page)) {   /* (the pages it has) */
                 n++;
                 if (i == ui.page)
                     k = n;
@@ -863,17 +911,7 @@ static void draw_columns(void)
             str_cpy(val, "--", 12);
             u[0] = 0;
         }
-        if (cur_page()->id[1] == 4u) {                    /* maqam: STEP 2: STEP and the CENT bend */
-            char sn[8], sl[8], cb[8];
-            fmt_int(sn, (int32_t)ui.cursor + 1);
-            str_cpy(sl, "/", 8);
-            fmt_int(sl + 1, TSEL->p[P_SLEN]);
-            cents_str(cb, st->cents);
-            draw_column(0, "STEP", sn, sl, VAL(0u), -1, ICON_AUTO);
-            draw_column(1, "CENT", cb, "c", step_on(st) ? VAL(1u) : C_DIM, ((int32_t)st->cents + 63) * 1000 / 126, ICON_AUTO);
-            draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
-            draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
-        } else {
+        {
             static const char *const FLAG_N[4] = {"-", "ACC", "SLD", "A+S"};
             char sn[8], sl[8];
             fmt_int(sn, (int32_t)ui.cursor + 1);
@@ -881,7 +919,13 @@ static void draw_columns(void)
             fmt_int(sl + 1, TSEL->p[P_SLEN]);
             draw_column(0, "STEP", sn, sl, VAL(0u), -1, ICON_AUTO);
             draw_column(1, "NOTE", val, u, step_on(st) ? VAL(1u) : C_DIM, -1, ICON_AUTO);
-            draw_column(2, "TIME", TIME_N[st->time % 3u], "", VAL(2u), -1, ICON_AUTO);
+            if (step_on(st)) {                          /* a note: its LEN (2.6), steps with the TIEs after it */
+                char ln[8];
+                fmt_int(ln, (int32_t)note_len(TSEL, ui.cursor));
+                draw_column(2, "LEN", ln, "STEP", VAL(2u), -1, ICON_AUTO);
+            } else {
+                draw_column(2, "TIME", TIME_N[st->time % 3u], "", VAL(2u), -1, ICON_AUTO);
+            }
             draw_column(3, "FLAG", FLAG_N[(st->flags & SF_ACCENT ? 1u : 0u) | (st->flags & SF_SLIDE ? 2u : 0u)], "",
                         VAL(3u), -1, ICON_AUTO);
         }
@@ -890,11 +934,16 @@ static void draw_columns(void)
     for (c = 0; c < 4u; c++) {
         int16_t *vp;
         const param_desc_t *d = page_desc(cur_page(), c, &vp);
+        if (cur_page()->graph == GR_SLOTS && c == 1u) {   /* 2.6: ERASE, lit while the slot holds a project */
+            draw_column(1, "ERASE", "--", "", project_used((uint32_t)song.g[G_SLOT] - 1u) ? C_HI : C_DIM, -1, ICON_AUTO);
+            continue;
+        }
         if (!d || !d->label || d->label[0] == '-') {
             draw_column(c, "", "", "", C_HI, -1, ICON_AUTO);
             continue;
         }
-        if (cur_page()->id[c] == G_MIDI && cur_page()->scope == SC_GLOBAL) {
+        if (cur_page()->id[c] == G_INFO && cur_page()->scope == SC_GLOBAL && !usb.config) {   /* not connected: the
+                                                       * USB status instead of the CPU (2.4: MIDI is MIDI OUT, ROUT is IN) */
             str_cpy(val, !usb.up ? "OFF" : usb.config ? "MIDI" : usb.setups ? "ENUM" : usb.sof_seen ? "BUS" : "WAIT", 12);
             unit = "USB";
             draw_column(c, "USB", val, unit, C_HI, -1, ICON_AUTO);
@@ -926,6 +975,9 @@ static void ui_timers(void)
         ui.hot_t--;
 }
 
+static void vis_draw(void);                     /* ui_vis.c */
+static int vis_shown(void);
+static uint8_t vis_on, vis_shown_last, vis_name_t;   /* the visualiser (ui_vis.c): on, drawn last frame, its name's time */
 static void ui_draw(void)
 {
     ui.frame++;
@@ -990,6 +1042,18 @@ static void ui_draw(void)
         ui_timers();
         ui.force = 0;
         return;
+    }
+    if (vis_shown()) {                                  /* the visualiser over the TRACKS screen */
+        vis_draw();
+        ui_timers();
+        ui.force = 0;
+        return;
+    }
+    if (vis_shown_last) {                               /* back from it */
+        vis_shown_last = 0;
+        vis_on = 0;
+        lcd_fill(0, 0, 240, 240, C_BLACK);
+        ui.force = 1;
     }
     if (!ui.home && cur_page()->scope == SC_TRK) {
         studio_tracks_draw();
