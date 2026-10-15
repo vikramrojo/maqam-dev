@@ -124,14 +124,18 @@ WHITE uses the same idea for degrees missing in the direction's form (D5), and t
 
 Direction is still judged from the previous key on that track. After more than 1 s without a key on that track, the next key counts as ascending, so a new phrase does not inherit the last one's direction. While SEL is held, the subtitle shows an up or down arrow (control-code glyphs 3 and 4) for scales whose two forms differ.
 
-### D7. OCT− / OCT+ as a modifier; octave change on release
-- In `ui_input.c`, the octave change moves from press to release. A per-button "used" bit is set by any key press while the button is held.
+### D7. OCT− / OCT+ as a modifier; octave change by double tap (revised)
+- *Revised after play-testing:* the first version changed the octave on release, which made the modifier depend on pressing OCT before the key. Now:
+  - pressing or letting go of OCT− / OCT+ while keys are held plays them again a quarter tone off, or back at the key's note (`seq.c kb_repress`: a new attack, recorded as played);
+  - a double tap (two short, clean taps within 300 ms, `pitch24.h oct_tick`) changes the octave on the second press;
+  - a single tap does nothing.
+- A per-button "used" bit is set by any key down while the button is held, or by a knob turned with it (`oct_use`).
 - `kb_map` adds ∓1 quarter tone when OCT− / OCT+ is held on a synth track. In CHR this is chromatic; in SNAP the offset is applied before rounding, so a modifier can still reach a degree.
 - On the step page, the same modifier makes NOTE move by quarter tones.
 - **Alternatives:**
   - SCL as the modifier: it already opens the SCL layer.
   - A menu toggle: too slow for live play.
-- **Cost:** about 50 ms of perceived latency on octave changes, because the change happens on release.
+- **Cost:** an octave change takes two taps. In exchange, OCT works as a modifier in either order (OCT then key, or key then OCT), which is what quarter-tone ornaments need.
 
 ### D8. Scale sets in the UI; no saved set parameter
 `SCALES[P_SCALE].set` is the source of truth.
@@ -236,6 +240,15 @@ Also changed in the merge:
 - **MIDI.** MIDI-entered steps and per-track MIDI channels keep MIDI notes plain 12-tone.
 - **FM6.** `eng_fm6.c` takes the semitone of a note.
 - **Upstream's audio preview.** `sloop-preview.wasm` and the offline editor are kept. The preview is still upstream's build (no CENT) until it is rebuilt with `tools/build_preview.py`, which needs `emcc` (task 9.4).
+
+### D18. Chord modes for microtonal scales
+- Play-testing found only POWER legible on the maqam sets. That matches the traditions: maqam, makam and raga are melodic (heterophony, octave doubling, drones), and stacked neutral thirds are weakly concordant (Majeed 2025, "Maqam Harmony"). Maqam-jazz practice avoids the third (sus2/sus4, Dielemans, Royal Conservatoire The Hague). Turkish art music has a quartal harmony system (Kemal İlerici). The tanpura holds the tonic and the fifth (or the fourth) under a raga.
+- **Rule:** the frame is exact (octave 1200 c, fifth 700 c, fourth 500 c); only TRIAD / 7TH / 9TH take colour notes from the scale.
+- **Added modes** (appended to `N_CHORD`, so stored values keep their meaning): 8VA, QUART, DRONE. Off WEST, SUS4 and QUART are exact. On WEST they stay diatonic, so 12-tone use is unchanged.
+- **DRONE** is a chord shape (the root just below + the note). A held drone voice independent of the keys would need its own voice allocation; it is left for later.
+- **Upstream compatibility:** SLOOP 2.6 clamps CHORD 6..8 to POWER (`chord_notes`), so a fork project plays its chords as power chords there.
+- **MIDI learn:** a learned CC sweeps upstream's ranges for CHORD (OFF..POWER), SCALE (the 16 WEST scales) and ROOT (the 12 semitone roots), so a controller mapped on SLOOP 2.6 selects the same values here. The fork's extra values are set from the panel and the editor.
+- Tonic + ghammaz was considered and dropped: the ghammaz is per-maqam data the scale files don't carry.
 
 ## Future work (not in this change)
 - **Tuning profiles.** More `tune[]` columns selected by the intonation setting: Cairo 1929 (Egyptian, measured), Mukhtār 1944 and Meshshāqa 1899. Every one measured stays within ±27 c.

@@ -73,26 +73,34 @@ While SEL is held, the subtitle SHALL show an up or down arrow for the current d
 - **THEN** the subtitle shows no arrow
 
 ### Requirement: Half-flat and half-sharp modifier
-On a synth track, holding OCT− while pressing a key SHALL lower the key's note by one quarter tone, and holding OCT+ SHALL raise it by one. This modifier SHALL also apply when choosing the root in the SEL layer. On the drum track, OCT− / OCT+ SHALL keep their ghost and hard-hit behavior.
+On a synth track, holding OCT− while pressing a key SHALL lower the key's note by one quarter tone, and holding OCT+ SHALL raise it by one. Pressing OCT− / OCT+ while keys are held SHALL play those keys again (a new attack) a quarter tone lower / higher, and letting the button go SHALL play them again at the key's own note. While recording, the shifted note SHALL be recorded as played. This modifier SHALL also apply when choosing the root in the SEL layer. On the drum track, OCT− / OCT+ SHALL keep their ghost and hard-hit behavior.
 
 #### Scenario: Chromatic half-flat
 - **WHEN** the scale is CHR, OCT− is held and the E key is pressed
 - **THEN** E-half-flat plays
 
+#### Scenario: A held key shifted
+- **WHEN** the scale is CHR, the E key is held, and then OCT− is pressed
+- **THEN** E stops and E-half-flat plays; when OCT− is let go, E-half-flat stops and E plays again
+
 #### Scenario: Root half-flat
 - **WHEN** SEL and OCT− are held and the E key is pressed
 - **THEN** the root becomes E-half-flat
 
-### Requirement: Octave shift on release
-On a synth track, OCT− / OCT+ SHALL change the octave when released, and only if no key was pressed while the button was held. Pressing both buttons SHALL still reset the octave to 0.
+### Requirement: Octave shift by double tap
+On a synth track, a double tap of OCT− / OCT+ SHALL change the octave by one, on the second press. A tap counts only if it is short (at most 300 ms), no key is down and no knob is turned while it is held. The second press SHALL follow within 300 ms. A single tap SHALL not change the octave. Pressing both buttons SHALL still reset the octave to 0.
 
-#### Scenario: Plain octave change
-- **WHEN** OCT+ is pressed and released with no key pressed in between
-- **THEN** the octave goes up by one
+#### Scenario: Double tap
+- **WHEN** OCT+ is tapped twice within 300 ms with no key down
+- **THEN** the octave goes up by one on the second press
+
+#### Scenario: Single tap
+- **WHEN** OCT+ is tapped once
+- **THEN** the octave is unchanged
 
 #### Scenario: Modifier use keeps the octave
-- **WHEN** OCT+ is held, a key is pressed, and OCT+ is released
-- **THEN** the octave is unchanged
+- **WHEN** a key is held and OCT+ is tapped twice
+- **THEN** the key plays a quarter tone higher twice, and the octave is unchanged
 
 ### Requirement: Chords follow 24-tone scales
 In chord mode, chords SHALL stack degrees of the current 24-tone scale. A POWER chord SHALL add the perfect fifth and the octave.
@@ -100,6 +108,21 @@ In chord mode, chords SHALL stack degrees of the current 24-tone scale. A POWER 
 #### Scenario: Neutral triad
 - **WHEN** chord mode is TRIAD, the scale is ARAB Rast on C, and the root degree is played
 - **THEN** C, E-half-flat and G sound
+
+### Requirement: Chord modes with exact intervals
+Chord mode SHALL also offer 8VA (the note and its octave), QUART (three fourths of 500 cents) and DRONE (the note over the scale's root, the nearest one below it). On scales outside the WEST set, SUS4 SHALL use an exact 500-cent fourth and 700-cent fifth, and QUART SHALL use exact fourths. On WEST scales, SUS4 and QUART SHALL use the scale's own degrees. The CHORD+ modifiers other than the inversion SHALL not apply to POWER, 8VA, QUART, DRONE or the exact SUS4.
+
+#### Scenario: Exact fourths in Saba
+- **WHEN** chord mode is QUART, the scale is ARAB Saba on D, and D4 is played
+- **THEN** D4, G4 and C5 sound, although Saba's own fourth above D is G-flat
+
+#### Scenario: Drone
+- **WHEN** chord mode is DRONE, the root is D, and A4 is played
+- **THEN** D4 and A4 sound
+
+#### Scenario: Western quartal
+- **WHEN** chord mode is QUART, the scale is WEST MAJ on C, and F4 is played
+- **THEN** F4, B4 and E5 sound
 
 ### Requirement: Key lights show quarter-tone scales
 In the SEL layer, a key SHALL be lit as in the scale when its semitone, or a quarter tone either side of it, is a degree of the scale.

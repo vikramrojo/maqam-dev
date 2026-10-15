@@ -538,7 +538,7 @@ static void layer_knobs(uint32_t layer)
         case LY_SCALE:
             if (k == 0u) {
                 if (!is_drum(t))
-                    t->p[P_CHORD] = (int16_t)clamp(t->p[P_CHORD] + s, 0, 5);
+                    t->p[P_CHORD] = (int16_t)clamp(t->p[P_CHORD] + s, 0, CH_N - 1);
             } else if (k == 1u) {
                 uint32_t i;
                 int16_t v = (int16_t)scale_step((uint32_t)trk[0].p[P_SCALE], s);   /* maqam: within the current set, wrapping (D8) */
@@ -900,12 +900,14 @@ static void layer_screen_draw(void)
                 uint32_t n = kb_map(t, k), m;
                 if (n != KB_SILENT && (m = chord_notes(t, n, c)) != 0u) {
                     uint32_t third = m > 1u ? note_p24(c[1]) - note_p24(c[0]) : 8u;   /* maqam: quarter tones */
-                    str_cpy(tl[i].lab, N_NOTE24G[note_p24(c[0]) % 24u], 8);   /* maqam: with the quarter-tone glyphs */
-                    if (t->p[P_CHORD] == 5)
-                        str_cpy(tl[i].lab + str_len(tl[i].lab), "5", 2);
-                    else if (third == 6u)
+                    uint32_t top = t->p[P_CHORD] == CH_DRONE ? note_p24(n) : note_p24(c[0]);   /* (DRONE: the key's note, over the tonic) */
+                    static const char *const SFX[CH_N] = {"", "", "", "", "", "5", "8", "q", ""};
+                    str_cpy(tl[i].lab, N_NOTE24G[top % 24u], 8);   /* maqam: with the quarter-tone glyphs */
+                    if (SFX[clamp(t->p[P_CHORD], 0, CH_N - 1)][0])
+                        str_cpy(tl[i].lab + str_len(tl[i].lab), SFX[clamp(t->p[P_CHORD], 0, CH_N - 1)], 2);
+                    else if (t->p[P_CHORD] < 4 && third == 6u)
                         str_cpy(tl[i].lab + str_len(tl[i].lab), "m", 2);
-                    isroot = note_p24(c[0]) % 24u == (uint32_t)trk[0].p[P_ROOT];
+                    isroot = top % 24u == (uint32_t)trk[0].p[P_ROOT];
                     in = 1;
                 }
             } else {                                  /* maqam: the root this key sets (the quarter-tone modifier shows) */
@@ -918,13 +920,13 @@ static void layer_screen_draw(void)
         scl_home(home, sizeof home, scale_index(&trk[0]));   /* maqam: the home hint takes the scale knob's label (non-WEST) */
         if (home[0])
             lab[1] = home;
-        te_lower(v[0], N_CHORD[clamp(t->p[P_CHORD], 0, 5)], 8);
+        te_lower(v[0], N_CHORD[clamp(t->p[P_CHORD], 0, CH_N - 1)], 8);
         te_lower(v[1], N_SCALE[scale_index(&trk[0])], 8);   /* maqam: SCALES codes */
         te_lower(v[2], N_QUANT[clamp(t->p[P_QUANT], 0, 2)], 8);
         fmt_int(v[3], t->p[P_TRANS]);
         if (is_drum(t))
             v[0][0] = v[2][0] = v[3][0] = 0;
-        ratio[0] = t->p[P_CHORD] * 200;
+        ratio[0] = t->p[P_CHORD] * 1000 / (CH_N - 1);
         ratio[1] = (int32_t)scale_set_rank(scale_index(&trk[0])) * 1000 /
                    (int32_t)(scale_set_count(SCALES[scale_index(&trk[0])].set) - 1u);   /* maqam: the place within the set */
         ratio[2] = t->p[P_QUANT] * 500;

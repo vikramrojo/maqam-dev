@@ -23,7 +23,7 @@ SLOOP is built entirely on 12-tone equal temperament. Keys, steps, scales and vo
   - SNAP: each key covers its own semitone and the quarter tone above it, then rounds down into the scale.
   - WHITE: the white keys walk the scale's degrees.
   - Holding OCT− / OCT+ while pressing a key on a synth track gives a half-flat / half-sharp, in chromatic mode and when choosing the root.
-  - The octave shift moves from button press to button release (only when no key was played while the button was held).
+  - The octave shift moves to a double tap of OCT− / OCT+. Pressing them while keys are held plays those keys again a quarter tone off.
 - **Scale set selection.** While SEL (the scale button, called SCL before SLOOP 2.5) is held, the PRESETS encoder cycles the four sets and KNOB2 scrolls within the current set.
 - **Per-step cent bend.** A lockable track parameter CENT (−63..+63 cents) on the SEL 2 page. A step's bend is a CENT parameter lock, made with SLOOP 2.6's own lock gesture.
 - **Display.** Note names on screen show half-flat and half-sharp glyphs.

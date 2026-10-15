@@ -969,10 +969,10 @@ static void ui_input(void)
         return;
     }
     layered = layers_input(notes, &pressed, home);
-    {   /* maqam: OCT- / OCT+ change the octave on release, unless a key was pressed meanwhile (pitch24.h oct_tick) */
+    {   /* maqam: OCT- / OCT+: a double tap changes the octave, a press with keys is a quarter tone (pitch24.h oct_tick) */
         uint32_t rs;
-        int32_t od = oct_tick((fm1_in.buttons & dyn_bit[0]) != 0u, (fm1_in.buttons & dyn_bit[1]) != 0u, notes,
-                              !layered && !ui.hold_kind && !is_drum(TSEL) && !on_song_page(), &rs);
+        int32_t od = oct_tick((fm1_in.buttons & dyn_bit[0]) != 0u, (fm1_in.buttons & dyn_bit[1]) != 0u, notes | fm1_in.notes,
+                              !layered && !ui.hold_kind && !is_drum(TSEL) && !on_song_page(), fm1_ms, &rs);
         if (rs)
             song.octave = 0;
         else if (od)
@@ -1061,7 +1061,7 @@ static void ui_input(void)
             break;
         case B_OCTDN:
         case B_OCTUP: {
-            /* the drum track: ghost / hard while held (seq.c); maqam: the octave changes on release (oct_tick above) */
+            /* the drum track: ghost / hard while held (seq.c); maqam: a double tap changes the octave (oct_tick above) */
             break;
         }
         case B_ENV:

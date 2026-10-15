@@ -301,32 +301,85 @@ int main(int argc, char **argv)
     fm1_in.notes = 0; frame(); check(!roll[0].on, "key up: the roll ends");
     release(B_ARP);
 
-    /* ---- maqam: OCT- / OCT+ on a synth track: the octave on release, a quarter tone while held with a key */
+    /* ---- maqam: OCT- / OCT+ on a synth track: a double tap changes the octave, held with keys a quarter tone */
     song.sel = 0; go_home(); frame();
     song.octave = 0;
     trk[0].p[P_QUANT] = 0; trk[0].p[P_SCALE] = 0; trk[0].p[P_CHORD] = 0; trk[0].p[P_ROOT] = 0; trk[0].p[P_TRANS] = 0;
+    tap(B_OCTUP);
+    check(song.octave == 0, "OCT+ tapped once: no octave change");
+    fm1_ms += 400;
+    tap(B_OCTUP);
+    check(song.octave == 0, "OCT+ tapped again 0.4 s later: still none (two single taps)");
     press(B_OCTUP);
-    check(song.octave == 0, "OCT+ pressed: the octave waits for the release");
+    check(song.octave == 1, "OCT+ double tap: octave +1 on the second press");
     release(B_OCTUP);
-    check(song.octave == 1, "OCT+ pressed and released alone: octave +1");
-    tap(B_OCTDN); tap(B_OCTDN); tap(B_OCTDN);
-    check(song.octave == -2, "OCT- x3: octave -2");
+    check(song.octave == 1, "... and letting go changes nothing more");
+    tap(B_OCTDN); tap(B_OCTDN); tap(B_OCTDN); tap(B_OCTDN);
+    check(song.octave == -1, "OCT- double tapped twice: octave -1");
+    press(B_OCTDN); frames(30); release(B_OCTDN); tap(B_OCTDN);
+    check(song.octave == -1, "OCT- held long then tapped: no double tap");
     song.octave = 2;
     press(B_OCTDN); press(B_OCTUP); frames(2);
     check(song.octave == 0, "OCT- + OCT+ held: octave 0");
     release(B_OCTUP); release(B_OCTDN);
     check(song.octave == 0, "... and letting go changes nothing");
+    fm1_ms += 400;
     press(B_OCTDN);
     check(kb_map(&trk[0], 11) == (63u | NOTE_Q) && kb_map(&trk[0], 7) == (59u | NOTE_Q), "CHR + OCT- held: the E key is E-half-flat (D#|Q), C is B+50");
     key(11);
     check(last_note == (63u | NOTE_Q), "CHR + OCT- + E: E-half-flat plays");
     release(B_OCTDN);
-    check(song.octave == 0, "OCT- released after a key: the octave is unchanged");
+    press(B_OCTDN);
+    check(song.octave == 0, "OCT- released after a key and pressed again: no double tap");
+    release(B_OCTDN);
+    fm1_ms += 400;
     press(B_OCTUP);
     check(kb_map(&trk[0], 11) == (64u | NOTE_Q), "CHR + OCT+ held: the E key is E+50");
     release(B_OCTUP);
-    check(song.octave == 1 && kb_map(&trk[0], 11) == 76u, "OCT+ alone: octave +1, the key is plain again");
-    song.octave = 0;
+    check(song.octave == 0 && kb_map(&trk[0], 11) == 64u, "OCT+ let go: the key is plain again");
+    fm1_ms += 400;
+    {   /* a key held, then OCT: it plays again a quarter tone off, and back when OCT is let go */
+        fm1_in.notes |= 1u << 11; frame();
+        check(last_note == 64u && kb_root[11] == 64u, "E held: E plays");
+        press(B_OCTDN);
+        check(last_note == (63u | NOTE_Q) && kb_nt[11][0] == (63u | NOTE_Q), "E held, OCT- pressed: E-half-flat plays again");
+        release(B_OCTDN);
+        check(last_note == 64u && kb_nt[11][0] == 64u, "... OCT- let go: back to E");
+        tap(B_OCTUP); tap(B_OCTUP);
+        check(song.octave == 0 && kb_nt[11][0] == 64u, "a key held: an OCT+ double tap is two quarter tones, no octave");
+        press(B_OCTUP);
+        check(kb_nt[11][0] == (64u | NOTE_Q), "E held, OCT+ pressed: E+50");
+        fm1_in.notes &= ~(1u << 11); frame();
+        release(B_OCTUP);
+        check(kb_kind[11] == KS_NONE && song.octave == 0, "E let go first, then OCT+: nothing left over");
+        fm1_ms += 400;
+        fm1_in.notes |= 1u << 7; frame(); fm1_in.notes |= 1u << 2; frame();     /* C4 held, then G3: G3 the last */
+        press(B_OCTDN);
+        check(last_note == (54u | NOTE_Q), "C4 then G3 held, OCT-: re-pressed in the order played (G3-50 last: MONO keeps it)");
+        release(B_OCTDN);
+        fm1_in.notes = 0; frame();
+        fm1_in.notes |= 1u << 2; frame(); fm1_in.notes |= 1u << 7; frame();     /* G3, then C4: C4 the last */
+        press(B_OCTDN);
+        check(last_note == (59u | NOTE_Q), "G3 then C4 held, OCT-: C4-50 last");
+        release(B_OCTDN);
+        fm1_in.notes = 0; frame();
+        fm1_ms += 400;
+        trk[0].p[P_AMODE] = 1;                                                   /* the arp: notes change in place */
+        fm1_in.notes |= 1u << 11; frame();
+        check(trk[0].nheld == 1u && trk[0].held[0] == 64u, "ARP, E held: E in the arp");
+        press(B_OCTDN);
+        check(trk[0].nheld == 1u && trk[0].held[0] == (63u | NOTE_Q) && held_dt[0][0] == -1,
+              "ARP, E held, OCT-: the arp's E becomes E-half-flat in place (kept by the re-pitch)");
+        check(arp_next(&trk[0]) == (63u | NOTE_Q), "... and the arp plays E-half-flat");
+        release(B_OCTDN);
+        check(trk[0].nheld == 1u && trk[0].held[0] == 64u && held_dt[0][0] == 0, "... OCT- let go: E again");
+        fm1_in.notes = 0; frame();
+        press(B_OCTUP); fm1_in.notes |= 1u << 11; frame();                       /* OCT first, then the key: the arp keeps it too */
+        check(trk[0].nheld == 1u && held_dt[0][0] == 1 && arp_next(&trk[0]) == (64u | NOTE_Q), "ARP, OCT+ then E: the arp plays E+50");
+        fm1_in.notes = 0; frame(); release(B_OCTUP);
+        trk[0].p[P_AMODE] = 0; trk[0].nheld = 0;
+        fm1_ms += 400;
+    }
     trk[0].p[P_QUANT] = 1; trk[0].p[P_SCALE] = 28;      /* ARAB Rast, SNAP: the modifier goes before the rounding */
     press(B_OCTUP);
     check(kb_map(&trk[0], 11) == 65u && kb_map(&trk[0], 10) == (63u | NOTE_Q), "SNAP Rast + OCT+: the E key reaches F, the D# key stays on E-half-flat (the modifier goes before the rounding)");
@@ -335,8 +388,8 @@ int main(int argc, char **argv)
     check(kb_map(&trk[0], 11) == (63u | NOTE_Q) && kb_map(&trk[0], 12) == 65u, "SNAP Rast: E is E-half-flat, F is F");
     trk[0].p[P_QUANT] = 0; trk[0].p[P_SCALE] = 0;
     song.sel = TRK_DRUM; go_home(); frame();
-    tap(B_OCTUP);
-    check(song.octave == 0, "the drum track: OCT+ alone changes no octave (ghost / hard)");
+    tap(B_OCTUP); tap(B_OCTUP);
+    check(song.octave == 0, "the drum track: an OCT+ double tap changes no octave (ghost / hard)");
     song.sel = 0; go_home(); frame();
 
     /* ---- maqam (5.3, 6.1, 6.2): the step pages: NOTE keeps the quarter tone, OCT- / OCT+ nudge it, CENT; names */
@@ -371,8 +424,9 @@ int main(int argc, char **argv)
         check(st->note[0] == (64u | NOTE_Q), "... OCT- still held, two detents up: E+50 (a quarter tone a detent)");
         release(B_OCTDN);
         check(song.octave == 0, "OCT- turned with NOTE and let go: the octave is unchanged");
-        tap(B_OCTUP);
-        check(song.octave == 1, "OCT+ alone: the octave still moves on release");
+        fm1_ms += 400;
+        tap(B_OCTUP); tap(B_OCTUP);
+        check(song.octave == 1, "OCT+ double tap: the octave still moves");
         song.octave = 0;
         st->note[0] = 63u | NOTE_Q;
         /* CENT: the track's fine tune on the SEL 2 page (KNOB 4), and a step's bend: a lock of it (SEQ, hold the step, ALGORITHM

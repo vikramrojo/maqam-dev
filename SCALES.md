@@ -45,7 +45,7 @@ What the tiles show:
 | **OCT− + a key** | root a quarter tone lower: OCT− + E = E half-flat |
 | **OCT+ + a key** | root a quarter tone higher |
 | **PRESETS** | the scale **set**: WEST → TURK → ARAB → INDIA (jumps to the set's first scale) |
-| **KNOB 1 chord** | chord mode: off, triad, 7th, 9th, sus4, power |
+| **KNOB 1 chord** | chord mode: off, triad, 7th, 9th, sus4, power, 8va, quart, drone |
 | **KNOB 2 scale** | the scale, within the current set (it wraps around) |
 | **KNOB 3 keys** | how the keys play the scale: off, snap, white (see below) |
 | **KNOB 4 transp** | transposes the track by semitones |
@@ -81,6 +81,18 @@ A scale whose two forms differ shows an arrow after its name in the title bar wh
 ![TRIAD in Rast: the tiles name the chord each key plays](assets/screens/scales/09-layer-arab-rast-C-triad.png)
 
 With **KNOB 1 chord** on, each tile shows the chord its key plays. In Rast, the chords on E and B are built on **E half-flat** and **B half-flat** (`E` and `B` with the half-flat glyph). They are *neutral* chords, neither major nor minor.
+
+Stacked neutral thirds sound murky, and the traditions themselves don't harmonise that way: they double the melody in octaves, hold a drone, or use open fourths and fifths. The chord modes that work on every scale keep those intervals **exact**:
+
+| Mode | Plays | On the non-Western sets | Tile |
+|---|---|---|---|
+| **power** | the note, a fifth (700 c) and the octave | as on WEST | `C5` |
+| **8va** | the note and its octave | as on WEST: the melody doubled | `C8` |
+| **sus4** | the note, a fourth (500 c) and a fifth (700 c) | exact; on WEST, the scale's 4th and 5th as before | `C` |
+| **quart** | three fourths: the note, +500 c, +1000 c | exact; on WEST, stacked scale fourths (jazz quartal) | `Cq` |
+| **drone** | the **tonic** (the root just below) under the note you play | the root of the scale, quarter-tone roots too | the note |
+
+In **drone** the tonic plays again with every key, so a sound with a long release works best. Every chord mode needs a POLY sound (EDIT → VOICE): a MONO sound plays only one note. The CHORD+ black keys only invert the chord in power, 8va, quart and drone, and the Western-scale sus4 keeps its modifiers.
 
 ### TRADITIONAL vs EQUAL
 
@@ -154,7 +166,7 @@ Each tile is a step. A step that holds a note shows its name with the half-flat 
 |---|---|
 | **KNOB 1 STEP** | which step you're editing (1/16) |
 | **KNOB 2 NOTE** | moves the note by **semitones** and **keeps its quarter tone** (E half-flat + 2 = F# half-flat) |
-| **OCT− or OCT+ held + KNOB 2 NOTE** | moves the note by **quarter tones** (E, then one detent down = E half-flat); the octave doesn't change when you let go |
+| **OCT− or OCT+ held + KNOB 2 NOTE** | moves the note by **quarter tones** (E, then one detent down = E half-flat); the octave doesn't change |
 | **KNOB 3 LEN, KNOB 4 FLAG** | as in SLOOP 2.6 (note length; accent, slide) |
 
 The picture underneath is the pattern: each short line is a step's pitch, and the dots mark the steps.
@@ -196,5 +208,6 @@ A step's bend is a **lock** of CENT on that step, made like any other SLOOP 2.6 
      - press the root key.
   2. Let go and play the white keys up and down.
 - **Hear the traditional tuning.** Hold a note, hold SEL, and turn **ALGORITHM** left (`equal`) then right (`trad`).
-- **One quarter tone anywhere.** On a synth track, hold **OCT−** (lower) or **OCT+** (higher) and press the key.
+- **One quarter tone anywhere.** On a synth track, hold **OCT−** (lower) or **OCT+** (higher) and press the key. Or hold the key first, then press OCT: the note plays again a quarter tone off, and goes back when you let go of OCT.
+- **Change the octave.** Double-tap **OCT−** or **OCT+**. A single tap does nothing; both together reset the octave.
 - **Fine-tune one step.** In the SEQ layer hold the step, turn **PRESETS** once (a lock), turn **ALGORITHM** to *cent*, then **PRESETS** for the bend.

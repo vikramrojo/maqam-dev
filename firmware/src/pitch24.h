@@ -358,44 +358,56 @@ static inline uint32_t p24_midi_get(const track_t *t, uint32_t note)
     return (p24_midi_n[(uint32_t)(t - trk) % NTRK][(note >> 5) & 7u] >> (note & 31u)) & 1u;
 }
 
-/* OCT- / OCT+ on a synth track change the octave on release, only if no key was pressed while held; both held
- * reset it to 0 (task 3.4). Called every UI frame with the buttons' level, whether a key went down this frame,
- * and whether the buttons are free (no layer, hold or screen of its own uses them). Returns the octave step
- * (-1 / 0 / +1), *reset = 1 for both held */
+/* OCT- / OCT+ on a synth track: a quarter-tone modifier (oct_mod; keys held play again, seq.c kb_repress); a double tap
+ * (two clean taps, OCT_TAP_MS apart at most) changes the octave on the second press; both held reset it to 0. A tap is
+ * clean if no key was down and no knob turned while it was held (oct_use). Called every UI frame with the buttons'
+ * level, whether keys are down, whether the buttons are free (no layer, hold or screen of its own uses them) and the
+ * time in ms. Returns the octave step (-1 / 0 / +1), *reset = 1 for both held */
+#define OCT_TAP_MS 300u
 static uint8_t oct_used[2], oct_pend[2];
 static void oct_use(void) { oct_used[0] = oct_used[1] = 1; }   /* a knob turned with them held: a modifier too */
-static int32_t oct_tick(uint32_t dn, uint32_t up, uint32_t keys, uint32_t free, uint32_t *reset)
+static int32_t oct_tick(uint32_t dn, uint32_t up, uint32_t keys, uint32_t free, uint32_t now, uint32_t *reset)
 {
-    static uint8_t pd, pu;
+    static uint8_t prev[2], tap[2];
+    static uint32_t t_dn[2], t_up[2];
     uint8_t *pend = oct_pend, *used = oct_used;
+    uint32_t lv[2], b;
     int32_t d = 0;
+    lv[0] = dn != 0u;
+    lv[1] = up != 0u;
     *reset = 0;
     if (!free) {
-        pend[0] = pend[1] = 0;
+        pend[0] = pend[1] = tap[0] = tap[1] = 0;
     } else {
-        if (keys) {                                     /* a key while held: it is a modifier, not an octave change */
-            used[0] |= (uint8_t)dn;
-            used[1] |= (uint8_t)up;
+        for (b = 0; b < 2u; b++) {
+            if (lv[b] && keys)                          /* a key while held: a modifier */
+                used[b] = 1;
+            if (lv[b] && !prev[b]) {
+                if (lv[b ^ 1u]) {                       /* both: the octave back to 0 */
+                    *reset = 1;
+                    used[0] = used[1] = 1;
+                    pend[0] = pend[1] = tap[0] = tap[1] = 0;
+                } else if (tap[b] && !keys && now - t_up[b] <= OCT_TAP_MS) {   /* the second tap */
+                    d = b ? 1 : -1;
+                    tap[b] = 0;
+                    used[b] = 1;
+                    pend[b] = 0;
+                } else {
+                    pend[b] = 1;
+                    used[b] = (uint8_t)(keys != 0u);
+                    t_dn[b] = now;
+                    tap[b ^ 1u] = 0;
+                }
+            }
+            if (!lv[b] && prev[b]) {                    /* let go: a clean, short press arms the double tap */
+                tap[b] = (uint8_t)(pend[b] && !used[b] && now - t_dn[b] <= OCT_TAP_MS);
+                t_up[b] = now;
+                pend[b] = 0;
+            }
         }
-        if (dn && !pd) {
-            if (up) { *reset = 1; used[0] = used[1] = 1; pend[0] = pend[1] = 0; }
-            else { pend[0] = 1; used[0] = 0; }
-        }
-        if (up && !pu) {
-            if (dn) { *reset = 1; used[0] = used[1] = 1; pend[0] = pend[1] = 0; }
-            else { pend[1] = 1; used[1] = 0; }
-        }
-        if (!dn && pd && pend[0] && !used[0])
-            d = -1;
-        if (!up && pu && pend[1] && !used[1])
-            d = 1;
-        if (!dn)
-            pend[0] = 0;
-        if (!up)
-            pend[1] = 0;
     }
-    pd = (uint8_t)(dn != 0u);
-    pu = (uint8_t)(up != 0u);
+    prev[0] = (uint8_t)lv[0];
+    prev[1] = (uint8_t)lv[1];
     return d;
 }
 
