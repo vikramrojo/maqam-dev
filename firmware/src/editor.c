@@ -240,7 +240,6 @@ static void ed_step_out(const track_t *t, uint32_t i)
 /* a step written: n, 4 notes, time, flags, vel [, lvl, hi, rat [, qbits]] */
 static void ed_step_in(track_t *t, uint32_t i, const uint8_t *a, uint32_t na)
 {
-    uint32_t k;
     if (is_drum(t)) {
         ed_dstep_from_old(&t->dstep[i], a);
         return;
