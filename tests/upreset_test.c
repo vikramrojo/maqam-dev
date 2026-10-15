@@ -213,7 +213,7 @@ int main(void)
     }
     {   /* maqam (5.5): B-half-flat in the pattern, at UP_VER 1: steps -> record -> bank -> record, and over UP_PUT */
         step_t st[NSTEP];
-        up_rec_t q, back;
+        up_rec_t q;
         uint32_t m;
         memset(st, 0, sizeof st);
         for (i = 0; i < 16u; i++)
