@@ -45,7 +45,7 @@
 #define PROJ_NG 32u                            /* the globals of formats 4 and 5 (G_COUNT until 2.4). SLOOP 2.5's
                                                 * G_DRDLY rides in the byte after sel (0 in older projects: off),
                                                 * so the format and its size do not change */
-_Static_assert(G_DRDLY == PROJ_NG && G_TXSRC == PROJ_NG + 5u && G_INTON == G_BEND + 1u && G_COUNT == G_INTON + 1u,   /* maqam: G_INTON last, not stored in g[] */
+_Static_assert(G_DRDLY == PROJ_NG && G_TXSRC == PROJ_NG + 5u && G_INTON == G_BEND + 1u && G_COUNT == G_INTON + 1u + MAQAM_PRESS,   /* maqam: G_INTON last, not stored in g[] */
                "the globals a project holds, then G_DRDLY (then 2.6's GLO > MIDI: settings of the FM-1)");
 #define PROJ_NC6 ((uint32_t)P_ITYPE)           /* format 6: the parameters kept in 16 bits, P_LEVEL .. P_VLEAD (as 5), */
 #define PROJ_NX6 ((uint32_t)(P_CENT - P_ITYPE))  /* the 2.6 ones in a byte (0..127), then P_E0 .. P_E7 (maqam: P_CENT, just before P_E0, is not stored here) */
@@ -439,6 +439,10 @@ static void proj_mq_put(project_t *p)
     for (i = 0; i < 8u; i++)
         x ^= (uint32_t)b[i] << ((i & 3u) * 8u);
     b[8] = (uint8_t)(x ^ (x >> 8) ^ (x >> 16) ^ (x >> 24) ^ 0x5Au);
+#if MAQAM_PRESS
+    b[9] = (uint8_t)(song.g[G_AFT] != 0);       /* AFT after the check: MQ v1 readers ignore bytes 9..11 */
+    b[10] = (uint8_t)~b[9];
+#endif
     for (i = 0; i < 6u; i++)
         p->g[MQ_G[i]] = (int16_t)(b[2 * i] | b[2 * i + 1] << 8);
 }
@@ -465,6 +469,17 @@ static int proj_mq_get(const project_t *p, uint32_t *inton, uint32_t *half, int3
         cent[i] = clamp((int8_t)b[4 + i], -63, 63);
     return 1;
 }
+#if MAQAM_PRESS
+/* AFT from a valid block (bytes 9 and 10: the value and its complement), else OFF */
+static uint32_t proj_mq_aft(const project_t *p)
+{
+    uint32_t inton, half, b9 = (uint8_t)((uint16_t)p->g[MQ_G[4]] >> 8), b10 = (uint8_t)p->g[MQ_G[5]];
+    int32_t cent[NTRK];
+    if (!proj_mq_get(p, &inton, &half, cent) || b10 != (uint8_t)~b9 || b9 > 1u)
+        return 0;
+    return b9;
+}
+#endif
 
 static void proj_capture(project_t *p)        /* what is playing now, as a project */
 {
@@ -516,6 +531,10 @@ static void proj_apply(const project_t *p, int all)
     proj_mq_get(p, &mq_inton, &mq_half, mq_cent);       /* maqam: the fork block, or its defaults */
     if (all)
         song.g[G_INTON] = (int16_t)mq_inton;
+#if MAQAM_PRESS
+    if (all)
+        song.g[G_AFT] = (int16_t)proj_mq_aft(p);
+#endif
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         const proj_trk_t *s = &p->t[k];

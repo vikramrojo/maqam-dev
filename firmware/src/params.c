@@ -196,6 +196,9 @@ static const param_desc_t GP[G_COUNT] = {
     [G_TXDUCK] = PE("DUCK", N_ONOFF, 0),          /* ON: the kick pumps it too (GLO > MASTER > DUCK) */
     [G_BEND] = PD("BEND", F_SEMI, 1, 12, 2),      /* 2.6, GLO > MIDI 2: MIDI pitch bend's range (a setting of the FM-1) */
     [G_INTON] = PE("INTON", N_INTON, 1),            /* maqam: default TRADITIONAL */
+#if MAQAM_PRESS
+    [G_AFT] = PE("AFT", N_AFT, 0),                  /* maqam: pressure bend, default OFF */
+#endif
 };
 
 static const param_desc_t DRUM_KIT_DESC = PE("KIT", DRUM_KIT_NAMES, 0);
@@ -417,6 +420,9 @@ static const page_t PAGES[] = {
                                                                            * SYSTEM too, the drums' channel on DRUMS) */
     {"TEXTURE", FAM_GLO, SC_GLOBAL, GR_NONE, {G_TXSRC, G_TXLVL, G_TXTONE, G_TXMOVE}},   /* 2.6: the bed under the mix */
     {"TEXTURE 2", FAM_GLO, SC_GLOBAL, GR_NONE, {G_TXRATE, G_TXWHEN, G_TXDUCK, 0xFF}},
+#if MAQAM_PRESS
+    {"PRESS", FAM_GLO, SC_GLOBAL, GR_NONE, {G_AFT, 0xFF, 0xFF, 0xFF}},   /* maqam: the pressure bend */
+#endif
     {"PRESETS", FAM_SAVE, SC_GLOBAL, GR_BROWSE, {0xFF, 0xFF, 0xFF, 0xFF}},   /* browser: PRESETS knob / KNOB 1 */
     {"USER", FAM_SAVE, SC_GLOBAL, GR_USER, {0xFF, 0xFF, 0xFF, 0xFF}},       /* user presets: SLOT LOAD ERASE SAVE */
     {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, 0xFF, G_LOAD, G_SAVE}},   /* (KNOB 2: ERASE, 2.6: ui_input.c) */

@@ -45,6 +45,11 @@ static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 #include "../firmware/src/arranger.c"
 #endif
 #include "../firmware/src/seq.c"
+#if MAQAM_PRESS
+#define FM1_PRESS_HOST 1                /* maqam: the pressure bend; fm1_press[] set by the test (tests/press_test.c) */
+#include "../firmware/hal/fm1_press.h"
+#include "../firmware/src/press.c"
+#endif
 #define inst (trk[0])                   /* the single-part renders below: part 1 */
 
 static void wav_hdr(FILE *f, uint32_t frames)

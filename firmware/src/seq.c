@@ -1745,6 +1745,7 @@ static void keyboard_block(void)
 {
     uint32_t cur = fm1_in.notes, ch = cur ^ kb_prev, k, r;
     audition_block();
+    PRESS_BLOCK();                                    /* maqam: pressure on the keys held (MAQAM_PRESS) */
     if (er_mute && layer_now() != LY_ERASE)
         er_mute = 0;                                  /* EDIT let go: its keys erase again (2.6) */
     if (!(layer_buttons() & ly_bit[LY_ROLL]))         /* ARP up (and not locked): the rolls end (the keys stay silent) */

@@ -130,6 +130,23 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+      # maqam: a second package with the pressure bend built in (MAQAM_PRESS=1, openspec/changes/maqam-aftertouch-bend),
+      # to try on the FM-1; not the default and not on the site. Built last: the package above stays the default one
+      - name: Build the pressure-bend test firmware (MAQAM_PRESS=1)
+        id: press
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          MAQAM_PRESS=1 sh build.sh 2>&1 | tee build-press.log
+          mkdir -p press && cp build/felucca.fwsc press/maqam-press.fwsc && cp build-press.log press/
+      - name: Upload the pressure-bend test firmware
+        if: steps.press.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: maqam-press-firmware-${{ github.sha }}
+          path: press
+          retention-days: 30
+
   pages:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

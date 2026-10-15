@@ -7,18 +7,18 @@ Lets pressure on a held key bend its note continuously by a few cents, on the ke
 ## ADDED Requirements
 
 ### Requirement: Pressure is opt-in at build time
-Pressure sensing SHALL be compiled only with the `MAQAM_PRESS` build flag. Without it, the firmware package SHALL be byte-identical to the same source without this change.
+Pressure sensing SHALL be compiled only with the `MAQAM_PRESS` build flag. Without it, the firmware SHALL contain none of the pressure code, globals, pages or stored bytes.
 
 #### Scenario: Default build
-- **WHEN** the firmware is built without `MAQAM_PRESS`
-- **THEN** `build/felucca.fwsc` has the same SHA-256 as the build before this change
+- **WHEN** the firmware source is preprocessed without `MAQAM_PRESS`
+- **THEN** it contains no pressure code (`fm1_press`, `press_block`, `press_q`, `G_AFT`, the sense hooks)
 
 ### Requirement: Pressure bends held notes
-With AFT set to a depth and a key among F3..C5 held, the key's notes SHALL bend up by pressure × depth / 127, smoothed. The bend SHALL go back to 0 when the pressure does. Keys above C5 SHALL not bend.
+With AFT ON and a key among F3..C5 held, the key's notes SHALL bend up by pressure × 25 cents / 127, smoothed. The bend SHALL go back to 0 when the pressure does. Keys above C5 SHALL not bend. Each key SHALL bend on its own pressure, and a chord key SHALL bend all its notes.
 
-#### Scenario: Full pressure at 50c
-- **WHEN** AFT is 50c and A4 is held at full pressure
-- **THEN** A4 sounds 50 ± 3 cents sharp
+#### Scenario: Full pressure
+- **WHEN** AFT is ON and A4 is held at full pressure
+- **THEN** A4 sounds 25 ± 2 cents sharp
 
 #### Scenario: AFT off
 - **WHEN** AFT is OFF
@@ -39,16 +39,16 @@ AFT SHALL be stored in the MQ extension block, bytes 9 and 10 (the value and its
 - **THEN** AFT is OFF
 
 #### Scenario: Older fork build
-- **WHEN** a project saved with AFT 50c is loaded by a fork build from before this change
+- **WHEN** a project saved with AFT ON is loaded by a fork build from before this change
 - **THEN** it loads normally, with its quarter tones, intonation and CENT
 
 #### Scenario: Upstream firmware
-- **WHEN** a project saved with AFT 50c is loaded by SLOOP 2.6
+- **WHEN** a project saved with AFT ON is loaded by SLOOP 2.6
 - **THEN** it loads as a SLOOP 2.6 project
 
 ### Requirement: MIDI out sends poly pressure only with AFT on
 With AFT on and MIDI out enabled, each held key's pressure SHALL be sent as poly key pressure on its track's channel, for the note's semitone. With AFT OFF, the MIDI output SHALL be unchanged.
 
 #### Scenario: Pressure out
-- **WHEN** AFT is 25c and E-half-flat is held with rising pressure
+- **WHEN** AFT is ON and E-half-flat is held with rising pressure
 - **THEN** poly key pressure messages for D# (63) are sent

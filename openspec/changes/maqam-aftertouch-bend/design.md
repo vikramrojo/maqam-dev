@@ -23,12 +23,12 @@
 ## Decisions
 
 ### D1. Forward compatibility with SLOOP
-- **Build flag.** Everything in the HAL is behind `#if MAQAM_PRESS`. With the flag off, `build/felucca.fwsc` must be byte-identical to a build without this change (a test compares the SHA-256).
-- **One hook in upstream's file.** `fm1_input.h` gets one call site, `FM1_INPUT_SENSE(col, rows)`, defined empty unless `MAQAM_PRESS`. The DRIVE / ADC code lives in a new fork-only header, `firmware/hal/fm1_press.h`. A merge of upstream's `fm1_input.h` then conflicts on at most one line.
+- **Build flag.** Everything is behind `#if MAQAM_PRESS` (default 0, `core.h`; `MAQAM_PRESS=1 ./build.sh` turns it on). With the flag off, the preprocessed firmware holds none of the pressure code: the hooks expand to `((void)0)`, `PRESS_Q` to `0`, and no global, page, array or MQ byte is added (a host test checks the preprocessed `felucca.c`).
+- **Two hook lines in upstream's file.** `fm1_input.h` gets `FM1_INPUT_SENSE_TAKE()` before the rows are read and `FM1_INPUT_SENSE_START(n)` after column n is latched, both empty unless `fm1_press.h` defines them. The DRIVE / ADC code lives in a new fork-only header, `firmware/hal/fm1_press.h`, included before `fm1_input.h` in `felucca.c`. Elsewhere the upstream files get one `#if MAQAM_PRESS` block each (`main.c`, `params.c`, `core.h`, `project.c`) and one macro term (`voice.c`, `seq.c`).
 - **Formats.**
   - **Projects:** AFT goes in MQ block bytes 9 (value) and 10 (`~value`, its check). MQ stays version 1, and byte 8's check still covers bytes 0..7 only, so older fork builds read the block unchanged. Upstream ignores the whole block.
   - **Presets, settings and upstream magics:** unchanged.
-  - **Editor:** AFT is a new global after G_INTON, sent through the existing parameter description. The protocol version stays 11; an editor that doesn't know AFT shows it from its description.
+  - **Editor:** AFT is a new global after G_INTON (in the test build only), sent through the existing parameter description. The protocol version stays 11.
 - **MIDI.**
   - Poly pressure is sent only with AFT on, so with AFT OFF the MIDI stream is unchanged.
   - Incoming poly or channel pressure is ignored, as upstream does.
@@ -43,21 +43,28 @@
 - **MASTER and the battery:** each gets a scan slot (the MASTER on (odd frame, column 0), as fm1-velocity does). The battery is read in another free slot every 64th frame. The blocking reads in `main.c` stay for builds without the flag.
 
 ### D3. Bend in the voice
-- A new `int16_t at_q` in `voice_t`, in 1/4096 semitone, is added to the pitch sum next to `bendq` in `track_render`. This avoids the ±100 c clamp of the note's own cents and rides on glide.
-- `at_q` is smoothed towards its target each block (one-pole, ~30 ms) and reset at `voice_start`.
-- Every 5 ms, `seq.c` maps each held `KS_NOTE` key to its voices (`kb_nt[k][]` on track `kb_trk[k]`): target = press × depth × 4096 / (100 × 127).
-- With AFT OFF, `at_q` stays 0, so renders are bit-identical (the golden renders guard this).
+- `press_q[track][voice]` (`pitch24.h`, not a `voice_t` field, so the default build's structures are unchanged), in 1/4096 semitone, is added to the pitch sum next to `bendq` in `track_render` (`PRESS_Q`). This avoids the ±100 c clamp of the note's own cents and rides on glide.
+- `press.c`, every CTL block from `keyboard_block`: each held `KS_NOTE` key's pressure goes to the gated voices of its track sounding one of its notes (`kb_nt`): target = press × 25 c. One-pole smoothing (1/32 a block, ~23 ms). A voice whose age changed (a new note) starts from 0.
+- Poly key pressure out every 8 blocks (~6 ms), for moves of 3 or more and the return to 0.
+- With AFT OFF, the bends glide back to 0 and no message is sent.
 
 ### D4. Pressure and the OCT re-press
 - A key re-pressed by OCT (`kb_repress`) keeps its landing, so its pressure carries on without a jump.
 
+### D5. One direction: up, 25 cents
+- The reading can only fall below the key's landing (pressing harder), so the pressure is 0..127, never negative: a bend can go one way only. Up is chosen: a string pressed harder on a fretless neck goes sharp, and a vibrato that rises from the note keeps the note itself in tune at rest.
+- Only the lowest range, 25 c: the noise (±5 counts in 64) gives 10..13 steps, ~2 c each at 25 c, below hearing; at 100 c they would be audible. AFT is therefore OFF / ON, not a depth.
+
+### D6. The key's LED and the landing
+- A lit key LED lifts the reading by ~25 counts, and a held key's LED lights a frame or so after the press, after the landing. So the key's own LED is dark for its sample tick: a held key on rows PA7 / PA8 glows at about half brightness in the test build.
+
 ## Risks / Trade-offs
 - **[Risk] Breaking key scanning** (all keys look pressed if the rows' digital buffers are left off) → the flag defaults off; on-device checks come first. USB rescue (OCT− at power-on) still works, because it is read before the app starts.
 - **[Risk] Tick overrun** with the dim-LED pulses → measure the tick on the device (`target_budget.py` for the ISR) before enabling.
-- **[Risk] The feel is untested** (fm1-velocity lists aftertouch by feel as untested) → ship 25c as the first non-OFF value; try it on the device before making AFT visible by default.
+- **[Risk] The feel is untested** (fm1-velocity lists aftertouch by feel as untested) → a separate test package; 25 c only.
 - **[Trade-off] Only F3..C5 respond.** The keys above C5 play without bend. This is documented on the GLO page hint.
 - **[Trade-off] Upstream merge friction** → kept to one hook line and one new header.
 
 ## Open Questions
-- Should depth be per track (an extra MQ byte per track) instead of global?
-- Should a negative depth (pressure bends down) be offered, for maqam's lowered approach notes?
+- Should AFT be per track (an extra MQ byte per track) instead of global?
+- After the device test: is 25 c the right depth, is up the right way (DOWN would be a second value), and is the half-bright held-key LED acceptable?

@@ -129,6 +129,18 @@ mkdir -p build/tracks_demo
 run "TRACKS: 4-track pattern, live recording (lengths, swing), voice budget, engine switch, cost" env TRACKS=build/tracks_demo "$OUT/hostsim" 0 0 1 "$OUT/tracks.wav"
 $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/project_test" tests/project_test.c -lm
 run "project formats (FUN4 / FUN3 / FUN2 / FUN1 -> FUN5), capture / apply, autosave" "$OUT/project_test"
+# maqam: the pressure bend (MAQAM_PRESS, off by default): the default build holds none of it, the flagged one works
+press_none() {
+    ${CC%% *} -E -Ibuild/gen -Ifirmware/hal -Ifirmware/src firmware/src/felucca.c 2>/dev/null > "$OUT/felucca_default.i" &&
+    ${CC%% *} -E -DMAQAM_PRESS=1 -Ibuild/gen -Ifirmware/hal -Ifirmware/src firmware/src/felucca.c 2>/dev/null > "$OUT/felucca_press.i" &&
+    ! grep -qE 'fm1_press|press_block|press_q|G_AFT|FM1_INPUT_SENSE' "$OUT/felucca_default.i" &&
+    grep -q 'press_block' "$OUT/felucca_press.i" && grep -q 'fm1_press_take' "$OUT/felucca_press.i"
+}
+run "maqam: a default build compiles none of the pressure code (MAQAM_PRESS off)" press_none
+$CC -O2 -w -DMAQAM_PRESS=1 -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/press_test" tests/press_test.c -lm
+run "maqam: the pressure bend (MAQAM_PRESS): landing, 25 c up, chords, poly pressure out, not recorded" "$OUT/press_test"
+$CC -w -DMAQAM_PRESS=1 -Ibuild/gen -Ifirmware/src -o "$OUT/project_press" tests/project_test.c -lm
+run "maqam: AFT in the MQ block (MAQAM_PRESS): round trip, damaged, SLOOP 2.6 projects" "$OUT/project_press"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/slicer_test" tests/slicer_test.c -lm
 mkdir -p build/slicer_demo
 run "SLICER: no clicks, timing, sync with the sequencer, STUT, cost, demos" "$OUT/slicer_test" build/slicer_demo

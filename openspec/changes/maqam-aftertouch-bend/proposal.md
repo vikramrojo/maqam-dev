@@ -14,11 +14,12 @@ The fork follows upstream SLOOP closely and merges its releases. This change mus
   - The result is `fm1_press[27]` (0..127; always 0 for keys 20..26). Note on/off stays on the existing digital scan.
   - The scan's ADC use moves the MASTER pot (and the battery reading) into scan slots when the flag is on.
 - **Pressure bend.**
-  - A new global **AFT**: OFF / 25c / 50c / 100c (default OFF), on the GLO page.
-  - When AFT is on, each held key's pressure bends that key's voices up by up to the depth, smoothed (~30 ms), on top of quarter tones, scale intonation, CENT and MIDI pitch bend.
+  - A new global **AFT**: OFF / ON (default OFF), on its own GLO page, **PRESS**.
+  - When AFT is ON, each held key's pressure bends that key's voices **up**, by up to **25 cents**, smoothed (~25 ms), on top of quarter tones, scale intonation, CENT and MIDI pitch bend. That is the lowest range, so it acts as a vibrato under the finger rather than a bend towards the next note. Only one direction is possible (see design D5).
   - A chord key bends all its notes. On MONO / LEGATO tracks the sounding key bends.
   - The bend is a performance gesture. It is not recorded into steps (the sequencer has no bend lane).
 - **MIDI out.** With AFT on and MIDI out enabled, poly key pressure (0xA0, the note's semitone) is sent for each held key. Pitch bend is not sent, because it would bend every note on the channel.
+- **A separate test package.** CI builds a second firmware with the flag on, `maqam-press-firmware-<sha>`, whose About screen reads `MAQAM 2.6 AFT`. The default package and the site are unchanged.
 - **Storage.** AFT is kept in the fork's MQ extension block (bytes 9..10: the value and its own check), so:
   - SLOOP 2.6 reads the project as its own and ignores the block, as today;
   - fork builds from before this change read MQ v1 and ignore bytes 9..11;

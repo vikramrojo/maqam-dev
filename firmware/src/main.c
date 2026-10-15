@@ -184,12 +184,20 @@ static void fm1_main(void)
             bootguard_clear(&bootguard);     /* 30 s of this boot, even if TIMER4 survived reset */
         }
         {
+#if MAQAM_PRESS
+            int32_t b = fm1_press_batt == 0xFFFFu ? -1 : (int32_t)fm1_press_batt;   /* maqam: the scan owns the converter */
+#else
             int32_t b = fm1_adc_read(FM1_ADC_BATT);     /* battery: slow IIR */
+#endif
             if (b > 0)
                 song.batt_raw = song.batt_raw ? song.batt_raw + (b - song.batt_raw) / 32 : b;
         }
         {
+#if MAQAM_PRESS
+            int32_t a = fm1_press_master == 0xFFFFu ? -1 : (int32_t)fm1_press_master;
+#else
             int32_t a = fm1_adc_read(FM1_ADC_MASTER);
+#endif
             if (a >= 0) {
                 uint32_t k10;
                 knob += (a * 16 - knob) / 8;

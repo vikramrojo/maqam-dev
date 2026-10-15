@@ -75,6 +75,16 @@ static void pitch24_set(voice_t *v, uint32_t note, int32_t cents)
 
 #define N_SCALE SCALE_CODES                     /* the P_SCALE names: the codes (<= 5 chars), generated with SCALES[] */
 static const char *const N_INTON[] = {"EQUAL", "TRAD"};   /* G_INTON */
+#if MAQAM_PRESS
+static const char *const N_AFT[] = {"OFF", "ON"};          /* G_AFT: pressure bends a held key up to PRESS_CENTS */
+static int16_t press_q[NTRK][NVOICE];                       /* each voice's pressure bend, 1/4096 semitone (press.c) */
+#define PRESS_Q(t, i) press_q[(uint32_t)((t) - trk) % NTRK][i]
+static void press_block(void);
+#define PRESS_BLOCK() press_block()
+#else
+#define PRESS_Q(t, i) 0
+#define PRESS_BLOCK() ((void)0)
+#endif
 /* the 24 quarter-tone names from C (ROOT, task 2.4). ASCII for now: 'd' half-flat, '+' half-sharp;
  * the glyphs are task 6.1 */
 static const char *const N_NOTE24[24] = {"C", "C+", "C#", "Dd", "D", "D+", "D#", "Ed", "E", "Fd", "F", "F+",
