@@ -2,9 +2,9 @@
 # Build the FM-1 firmware (build/felucca.fwsc) with the JieLi toolchain and run the host tests.
 # The package is uploaded as an artifact of the run: Actions -> this run -> Artifacts (also linked
 # from a pull request's Checks tab). Linux x86-64 runs the JieLi tools natively (no Docker).
-# Every run builds the site (installer with this firmware, editor, emulator) as an artifact to preview;
-# only pushes to main publish it
-# to GitHub Pages: https://vikramrojo.github.io/maqam-dev/
+# Every run builds the site (installer, editor, emulator) as an artifact, maqam-site-<sha>. The pages workflow
+# (pages.yml) publishes main's at https://vikramrojo.github.io/maqam-dev/ and each open pull request's at
+# .../pr/<number>/, where the installer offers every firmware the pull request builds.
 name: firmware
 
 on:
@@ -67,6 +67,7 @@ jobs:
           set -o pipefail
           sh build.sh 2>&1 | tee build.log
           ls -l build/felucca.fwsc build/felucca.bin
+          mkdir -p dist && cp build/felucca.fwsc build/felucca.bin build/loader/ota.bin dist/   # (kept: later builds reuse build/)
 
       - name: Host tests
         id: tests
@@ -80,8 +81,8 @@ jobs:
           {
             echo "## Firmware build"
             echo
-            if [ -f build/felucca.fwsc ]; then
-              echo "- \`felucca.fwsc\`: $(stat -c %s build/felucca.fwsc) bytes, sha256 \`$(sha256sum build/felucca.fwsc | cut -c1-16)…\`"
+            if [ -f dist/felucca.fwsc ]; then
+              echo "- \`felucca.fwsc\`: $(stat -c %s dist/felucca.fwsc) bytes, sha256 \`$(sha256sum dist/felucca.fwsc | cut -c1-16)…\`"
             else
               echo "- **No firmware: the build failed** (see the log)."
             fi
@@ -91,51 +92,30 @@ jobs:
             grep -E "pool|RAM|free|golden renders|over budget|ALL HOST TESTS|HOST TESTS FAILED|FAIL" build.log tests.log 2>/dev/null | tail -40
             echo '```'
             echo
-            echo "Download: this run's **Artifacts** section (\`maqam-firmware-…\`). Install with the web installer, after a backup."
+            echo "Download: this run's **Artifacts** section (\`maqam-firmware-…\`), or a pull request's page (pages.yml). Install with the web installer, after a backup."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # The site: the installer with this firmware built in, the editor (protocol 11) and the emulator,
-      # built on every run (a preview artifact), deployed to GitHub Pages by the job below from main only
-      - name: Build the site (installer, editor, emulator)
-        run: |
-          sudo apt-get install -y -qq lld >/dev/null
-          sh web/emu/build.sh
-          python3 web/make_site.py build/felucca.fwsc "2.6-maqam-${GITHUB_SHA::7}" site
-          python3 tools/brand_site.py site
-          ls -R site | head -40
-      - name: Upload the site for Pages
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-      - name: Upload the site preview
-        if: github.event_name != 'push' || github.ref != 'refs/heads/main'
-        uses: actions/upload-artifact@v4
-        with:
-          name: maqam-site-${{ github.sha }}
-          path: site
-          retention-days: 14
-
       - name: Upload the firmware
-        if: always() && hashFiles('build/felucca.fwsc') != ''
+        if: always() && hashFiles('dist/felucca.fwsc') != ''
         uses: actions/upload-artifact@v4
         with:
           name: maqam-firmware-${{ github.sha }}
           path: |
-            build/felucca.fwsc
-            build/felucca.bin
-            build/loader/ota.bin
+            dist/felucca.fwsc
+            dist/felucca.bin
+            dist/ota.bin
             build.log
             tests.log
           if-no-files-found: warn
           retention-days: 30
 
       # maqam: a second package with the pressure bend built in (MAQAM_PRESS=1, openspec/changes/maqam-aftertouch-bend),
-      # to try on the FM-1; not the default and not on the site. Built last: the package above stays the default one.
+      # to try on the FM-1 (only where the source has it); not the default, and on previews only, never on main's site.
       # Without the parameter icons (FELUCCA_ICONS=0, upstream's switch): the default image leaves ~256 B of the
       # app's flash region (app.ld XIP), and the pressure code needs ~2 KB
       - name: Build the pressure-bend test firmware (MAQAM_PRESS=1)
         id: press
+        if: hashFiles('firmware/hal/fm1_press.h') != ''
         continue-on-error: true
         run: |
           set -o pipefail
@@ -149,20 +129,31 @@ jobs:
           path: press
           retention-days: 30
 
-  pages:
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    concurrency:
-      group: pages
-      cancel-in-progress: false
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deploy
-        uses: actions/deploy-pages@v4
+      # The site: the installer with this build's firmware, the editor (protocol 11) and the emulator. On main: the
+      # normal firmware (what pages.yml publishes at the root). Elsewhere (a branch, a pull request): a preview whose
+      # installer lists every firmware this build made (tools/site_firmwares.py)
+      - name: Build the site (installer, editor, emulator)
+        env:
+          PREVIEW_REF: ${{ github.head_ref || github.ref_name }}
+          PREVIEW_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          ON_MAIN: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: |
+          sudo apt-get install -y -qq lld >/dev/null
+          sh web/emu/build.sh
+          v="2.6-maqam-${PREVIEW_SHA::7}"
+          python3 web/make_site.py dist/felucca.fwsc "$v" site
+          python3 tools/brand_site.py site
+          if [ "$ON_MAIN" != true ] && [ -f press/maqam-press.fwsc ]; then
+            python3 tools/site_firmwares.py site --title "Preview of $PREVIEW_REF @ ${PREVIEW_SHA::7}, not a release." \
+              --base-label "Maqam" aft "Maqam AFT: the pressure-bend test build (no parameter icons)" \
+              press/maqam-press.fwsc "2.6-maqam-aft-${PREVIEW_SHA::7}"
+          elif [ "$ON_MAIN" != true ]; then
+            python3 tools/site_firmwares.py site --title "Preview of $PREVIEW_REF @ ${PREVIEW_SHA::7}, not a release." --base-label "Maqam"
+          fi
+          ls -R site | head -40
+      - name: Upload the site
+        uses: actions/upload-artifact@v4
+        with:
+          name: maqam-site-${{ github.sha }}
+          path: site
+          retention-days: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') && 90 || 14 }}

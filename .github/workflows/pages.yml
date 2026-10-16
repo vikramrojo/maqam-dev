@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# maqam: publish GitHub Pages: main's site at https://vikramrojo.github.io/maqam-dev/ and each open pull request's at
+# .../pr/<number>/ (its installer lists every firmware the pull request builds; tools/site_firmwares.py), from the
+# site artifacts of firmware.yml. Runs in main's context (workflow_run, pull_request_target), so the github-pages
+# environment keeps its main-only rule, and it never checks out or runs a pull request's code: it only copies the
+# sites the firmware workflow built, and only from this repository's branches (not from forks).
+name: pages
+
+on:
+  workflow_run:
+    workflows: [firmware]
+    types: [completed]
+  pull_request_target:
+    types: [closed]                  # a closed pull request's page goes
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read                  # the firmware runs' artifacts
+      pull-requests: write           # the preview comment
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4    # main (the scripts below), never a pull request's head
+      - name: Assemble main and the open pull requests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: sh .github/scripts/pages_assemble.sh "$RUNNER_TEMP/pages/site"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/pages/site
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
+      - name: Link each preview on its pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: sh .github/scripts/pages_comment.sh "$RUNNER_TEMP/pages/previews.txt" "${{ steps.deploy.outputs.page_url }}"
