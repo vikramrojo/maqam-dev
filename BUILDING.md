@@ -78,6 +78,19 @@ Tests: `tests/hostapp_test` (native, in `tests/run_tests.sh`; the golden is `tes
 `node web/test_web.mjs` (also renders the golden scenario from the wasm and compares), `node web/emu/test_page.mjs`
 (the page).
 
+## CI and the site (maqam)
+
+`.github/workflows/firmware.yml` builds every push and pull request:
+- the firmware (artifact `maqam-firmware-<sha>`) and runs the host tests;
+- where the source has it, the pressure-bend test firmware (`MAQAM_PRESS=1 FELUCCA_ICONS=0`, artifact `maqam-press-firmware-<sha>`);
+- the site (artifact `maqam-site-<sha>`). On a branch or a pull request, its installer lists every firmware the build made, with a chooser (`tools/site_firmwares.py`).
+
+`.github/workflows/pages.yml` then publishes GitHub Pages:
+- main's site at <https://vikramrojo.github.io/maqam-dev/>;
+- each open pull request's at `https://vikramrojo.github.io/maqam-dev/pr/<number>/webapp/installer/`, linked in a comment on the pull request.
+
+It runs in main's context, so it only works once it is on main. Pull requests from forks are never published, and a closed pull request's page goes at the next deploy.
+
 ## Samples
 
 The CC0 instrument samples that the SAMPLE engine uses are in `assets/samples-cc0/`
