@@ -5,7 +5,7 @@
   webapp/guide/    "How to play Maqam": web/site/getting-started.md + SCALES.md (the single source of truth for how
                    the scale screens work), converted by the small Markdown converter below, with the screenshots
                    of assets/screens/scales/ copied next to it
-  webapp/scales/   "The 52 scales and their temperament": generated from scales/*.txt through tools/gen_scales.py's
+  webapp/scales/   "The 65 scales and their temperament": generated from scales/*.txt through tools/gen_scales.py's
                    own parser, so the page can not drift from the firmware's table
 
   tools/gen_site_pages.py SITE_DIR      (tools/brand_site.py calls it)
@@ -133,7 +133,7 @@ def md_to_html(text):
 # --------------------------------------------------------------------- shell --- #
 # one theme (web/site/maqam.css on Largen) and one header / nav / footer for every page of the site
 SOURCE = REPO
-NAV = [("Home", None), ("Install", "installer/"), ("Try it", "emu/"), ("How to play", "guide/"), ("The 52 scales", "scales/"), ("Source", SOURCE)]
+NAV = [("Home", None), ("Install", "installer/"), ("Try it", "emu/"), ("How to play", "guide/"), ("The 65 scales", "scales/"), ("Source", SOURCE)]
 ASSET_FILES = ["largen.css", "largen.components.css", "theme-dark.css", "maqam-theme.css", "maqam.css"]
 
 
@@ -233,6 +233,12 @@ SETS = [
     ("INDIA", "Indian raga", "just intonation, the swaras",
      "The twelve swaras in just intonation: S 1/1, r 16/15, R 9/8, g 6/5, G 5/4, m 4/3, M 45/32, P 3/2, d 8/5, D 5/3, n 16/9, "
      "N 15/8 (lower case komal, M tivra). The raga lists give the ascending (aroha) and descending (avaroha) notes; Sa is the root."),
+    ("PSYCH", "Microtonal psych", "24-tone equal temperament, after King Gizzard and the Lizard Wizard",
+     "Makam and maqam scales as quarter-tone-fretted guitars play them: every note on the 50-cent grid, so every offset is 0. "
+     "Four families (4 + 3 + 3 + 3), each a 12-tone frame with two notes that move: <i>H&uuml;seyni</i> (the 2nd and 6th: neutral, minor "
+     "or major), <i>Hijaz</i> (the 3rd and 7th narrowed to neutral), <i>subminor Phrygian</i> (the 2nd and 6th a quarter tone above "
+     "the note below) and the <i>Kanada</i> ga (the low komal ga of Darbari Kanada, a quarter tone low, paired with a low ni on a Kafi frame). After The Pop Descriptivist's "
+     "<a href=\"https://www.youtube.com/watch?v=TiGI-5i2wZ8\">The Microtonal Scales of King Gizzard and the Lizard Wizard</a>."),
 ]
 
 
@@ -286,8 +292,8 @@ DOWN = '<span class="dir" data-tone="warning">down</span>'      # the descending
 def scales_page(site, rows=None):
     rows = rows or scales_data()
     maxdeg = max(len(r["up"]) for r in rows)
-    parts = ["<h1>The 52 scales and their temperament</h1>",
-             "<p class=\"lead\">Maqam has 52 scales in four sets. This page is generated from the data file the firmware is built from, "
+    parts = ["<h1>The 65 scales and their temperament</h1>",
+             "<p class=\"lead\">Maqam has 65 scales in five sets. This page is generated from the data file the firmware is built from, "
              "so what it lists is what the FM-1 plays.</p>",
              "<p>On the FM-1 the scale is chosen by holding <b>SEL</b>: <b>PRESETS</b> picks the set, <b>KNOB 2</b> the scale "
              "(<a href=\"../guide/\">how to play</a>).</p>",
@@ -324,7 +330,7 @@ def scales_page(site, rows=None):
                  '(Scala-style cents and ratios, with the comma steps and the ratio tables in their comments).</p>')
     out = site / "webapp" / "scales"
     out.mkdir(parents=True, exist_ok=True)
-    (out / "index.html").write_text(shell("The 52 scales and their temperament", "\n".join(parts), "The 52 scales"), encoding="utf-8")
+    (out / "index.html").write_text(shell("The 65 scales and their temperament", "\n".join(parts), "The 65 scales"), encoding="utf-8")
     return len(rows)
 
 

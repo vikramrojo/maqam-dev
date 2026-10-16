@@ -487,7 +487,7 @@ int main(int argc, char **argv)
         encs[panel.enc[EN_PRESET]] = -1; frame();
         check(trk[0].p[P_SCALE] == 0, "SCL + PRESETS -1: WEST's first scale");
         encs[panel.enc[EN_PRESET]] = -1; frame();
-        check(trk[0].p[P_SCALE] == 40, "SCL + PRESETS -1 again: it wraps to INDIA (40)");
+        check(trk[0].p[P_SCALE] == 52, "SCL + PRESETS -1 again: it wraps to PSYCH (52)");
         encs[panel.enc[EN_PRESET]] = 1; frame(); encs[panel.enc[EN_PRESET]] = 1; frame(); encs[panel.enc[EN_PRESET]] = 1; frame();
         check(trk[0].p[P_SCALE] == 28, "SCL + PRESETS x3: WEST, TURK, ARAB (28)");
         trk[0].p[P_SCALE] = trk[1].p[P_SCALE] = trk[2].p[P_SCALE] = 39;

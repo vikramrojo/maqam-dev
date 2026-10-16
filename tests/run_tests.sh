@@ -143,12 +143,12 @@ run "regression: golden renders, health, voices, CPU budget" "$OUT/regress" test
 # SLICE (tests/slice_test.c) needs a FELUCCA_SLICE=1 build; the engine is not built by default
 
 run "scales: the scale files, the generator and the frozen index list" python3 tests/scales_check.py
-# maqam: set navigation with a non-contiguous set (an ARAB scale appended at index 52, from a temp copy of scales/)
+# maqam: set navigation with a non-contiguous set (an ARAB scale appended at index 65, from a temp copy of scales/)
 rm -rf "$OUT/sc53"; mkdir -p "$OUT/sc53/g"; cp -r scales "$OUT/sc53/scales"
 printf '\nscale TESTA "TestAra" home D\n  from 9/8\n  up   9/8 102/83 4/3 3/2 27/16 883/490 1/1\n' >> "$OUT/sc53/scales/arab.txt"
 python3 tools/gen_scales.py "$OUT/sc53/g/scales.h" --dir "$OUT/sc53/scales"
 $CC -O2 -w -DSCALE_TEST_53 -I"$OUT/sc53/g" -Ibuild/gen -Ifirmware/src -o "$OUT/scale_test53" tests/scale_test.c -lm
-run "scales: a set whose members are not contiguous (ARAB at 52): KNOB 2 / PRESETS navigation" "$OUT/scale_test53"
+run "scales: a set whose members are not contiguous (ARAB at 65): KNOB 2 / PRESETS navigation" "$OUT/scale_test53"
 
 run "regression: target cost of the render loops" python3 tests/target_budget.py \
     build/felucca.dis tests/target_budget.txt

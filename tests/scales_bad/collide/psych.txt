@@ -1,0 +1,69 @@
+# SLOOP scales: PSYCH set (index 52..64)
+# Microtonal psych: makam and maqam scales as King Gizzard and the Lizard Wizard play them on
+# quarter-tone-fretted guitars, in equal quarter tones (24-TET cents, so every offset is 0).
+# Sources: The Pop Descriptivist, "The Microtonal Scales of King Gizzard and the Lizard Wizard
+#   (a Primer and Compendium)", 2024: https://www.youtube.com/watch?v=TiGI-5i2wZ8 and slides at
+#   https://sites.google.com/site/thepopdescriptivist/home/the-microtonal-scales-of-king-gizzard-and-the-lizard-wizard
+#   maqamworld.com (Ushaq Masri, Hijaz); Touma, The Music of the Arabs; Bor (ed.), The Raga Guide
+#   (the Kanada ga of Darbari Kanada).
+#
+# Four families, 4 + 3 + 3 + 3, built the way the slides analyse KGLW's scales: tetrachord symmetry.
+# Each is a 12-TET frame of five notes plus a pair of notes that move, one in each tetrachord (the 2nd
+# and 6th, or the 3rd and 7th). The symmetric scale puts both on the same rung; the others are hybrids.
+#   HUSEYNI (4)   frame 1 b3 4 5 b7    slot 2: neutral (150) | major (200)   slot 6: minor | neutral | major
+#   HIJAZ (3)     frame 1 b2 4 5 b6    slot 3: neutral (350) | major (400)   slot 7: b7 | neutral (1050) | maj 7
+#   SUBMINOR (3)  frame 1 b3 4 5 b7    slot 2: subminor (50) | minor | neutral   slot 6: subminor (750) | minor
+#   KANADA (3)    frame 1 2 4 5 6      slot 3: low (250) | minor (300)    slot 7: low (950) | minor (1000)
+# HUSEYNI and SUBMINOR share a frame: together the 2nd runs 50-200 c and the 6th 750-900 c.
+# Neutral = halfway between minor and major (150, 350, 850, 1050 c); subminor = a quarter tone
+# above the note below (50 c above the root, 750 c = 50 c above the 5th).
+# home = the traditional tonic (Turkish for Huseyni / Ussak / Neva / Hicazkar, Arabic for
+# Ushaq Masri / Hijaz); the SUBMINOR family has no tradition and uses KGLW's roots (G; See Me F#);
+# KANADA has Sa = C.
+
+# ---- HUSEYNI family: lower jins Bayati (or Nahawand), upper jins on the 5th varies ----
+scale P.HUS "Huseyni" home A    # Bayati + Bayati on 5. KGLW: Sleep Drifter, Rattlesnake, Honey (F#)
+  up   0. 150. 300. 500. 700. 850. 1000.
+
+scale P.MSR "UshMasri" home D   # Nahawand + Bayati on 5. KGLW: Anoxia (B), Flying Microtonal Banana zurna (F#)
+  up   0. 200. 300. 500. 700. 850. 1000.
+
+scale P.NEV "Neva" home A       # Bayati + Nahawand on 5 (Turkish Neva ends on dugah, like Huseyni). KGLW: Doom City bass riff, Oddlife vocals (F#)
+  up   0. 150. 300. 500. 700. 900. 1000.
+
+scale P.USK "Ussak" home A      # Bayati + Kurd on 5. KGLW: Pleura, Minimum Brain Size guitar (C#)
+  up   0. 150. 300. 500. 700. 800. 1000.
+
+# ---- HIJAZ family: augmented 2nd narrowed to neutral in the 3rd and/or 7th ----
+scale P.HJZ "Hijaz" home D      # Hijaz + Nahawand on 5 (Phrygian dominant, equal-tempered)
+  up   0. 100. 400. 500. 700. 800. 1000.
+
+scale P.HKR "Hicazkar" home G   # Hijaz + Hijaz on 5 (double harmonic, equal-tempered)
+  up   0. 100. 400. 500. 700. 800. 1100.
+
+scale P.NHK "NeutHkar" home G   # neutral 3rd + neutral 7th. KGLW: Static Electricity, East West Link (G)
+  up   0. 100. 350. 500. 700. 800. 1050.
+
+# ---- SUBMINOR family: Phrygian with the 2nd and 6th squeezed toward the note below ----
+scale P.SUB "SubPhryg" home G   # subminor 2nd + subminor 6th. KGLW: Open Water, Intrasport (G), Ataraxia (A, D)
+  up   0. 50. 300. 500. 700. 750. 1000.
+
+scale P.SU6 "SubPhr6" home G    # minor 2nd, subminor 6th: plain Phrygian with only the 6th squeezed
+  up   0. 100. 300. 500. 700. 750. 1000.
+
+scale P.SEE "SeeMe" home Gb     # neutral 2nd + subminor 6th. KGLW: See Me (F#; written Gb: "#" starts a comment here)
+  up   0. 150. 300. 500. 700. 750. 1000.
+
+# ---- KANADA family: the Kanada ga of Hindustani music (the komal ga sung low, with a slow andolan, as in
+# Darbari Kanada), stylised a quarter tone low and made symmetric in the KGLW way: on a Dorian frame
+# (Kafi thaat: S R m P D) the ga and its partner in the upper tetrachord, ni, move together.
+# Low = 250 / 950 c; the tetrachord is 4-1-5 (in quarter tones). A stylisation, not a named raga.
+# Sa = the root; home C as in the INDIA set.
+scale P.KAN "Kanada" home C     # low ga + low ni: 4-1-5 | 4-1-5, the symmetric form
+  up   0. 200. 250. 500. 700. 900. 950.
+
+scale P.KNG "KanadaGa" home C   # low ga, komal ni: 4-1-5 | 4-2-4 (Kafi with the Kanada ga)
+  up   0. 200. 250. 500. 700. 900. 1000.
+
+scale P.KNN "KanadaNi" home C   # komal ga, low ni: 4-2-4 | 4-1-5
+  up   0. 200. 300. 500. 700. 900. 950.

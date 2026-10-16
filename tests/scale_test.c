@@ -24,7 +24,7 @@ static void mapping_test(void)
     track_t *t = &trk[0];
     uint32_t s, k, w;
     int root, oct, trans;
-    assert(TP[P_SCALE].max + 1 == NSCALES && NSCALES == 52);   /* maqam: 52 scales, the WEST rows are 0..15 */
+    assert(TP[P_SCALE].max + 1 == NSCALES && NSCALES == 65);   /* maqam: 65 scales, the WEST rows are 0..15 */
     t->p[P_QUANT] = 2;
     for (s = 0; s < sizeof EXPECTED / sizeof EXPECTED[0]; s++) {   /* maqam: the WEST scales */
         uint32_t mask = 0;
@@ -136,10 +136,10 @@ static void key_events_test(void)
 }
 
 
-/* maqam (tasks 2.3 / 2.6): the 52 scales, frozen: index order (append-only), set, and the 24-bit ascending /
+/* maqam (tasks 2.3 / 2.6): the 52 scales + the 13 of PSYCH (52..64), frozen: index order (append-only), set, and the 24-bit ascending /
  * descending masks (bit = quarter-tone slot from the root). Copied from design.md's appendix; the WEST rows are
  * EXPECTED above, spread onto the even slots. */
-static const struct { const char *code; uint8_t set; uint32_t asc, desc; } FROZEN[52] = {
+static const struct { const char *code; uint8_t set; uint32_t asc, desc; } FROZEN[65] = {
     {"CHR", SET_WEST, 0x555555u, 0x555555u}, {"MAJ", SET_WEST, 0x444511u, 0x444511u}, {"MIN", SET_WEST, 0x114451u, 0x114451u},
     {"DOR", SET_WEST, 0x144451u, 0x144451u}, {"MIX", SET_WEST, 0x144511u, 0x144511u}, {"PEN", SET_WEST, 0x044111u, 0x044111u},
     {"MPEN", SET_WEST, 0x104441u, 0x104441u}, {"HARM", SET_WEST, 0x414451u, 0x414451u}, {"PHRY", SET_WEST, 0x114445u, 0x114445u},
@@ -158,6 +158,11 @@ static const struct { const char *code; uint8_t set; uint32_t asc, desc; } FROZE
     {"BHRVI", SET_INDIA, 0x114445u, 0x114445u}, {"BHAIR", SET_INDIA, 0x414505u, 0x414505u}, {"TODI", SET_INDIA, 0x415045u, 0x415045u},
     {"PURVI", SET_INDIA, 0x415105u, 0x415105u}, {"MARWA", SET_INDIA, 0x441105u, 0x441105u}, {"BHUPL", SET_INDIA, 0x044111u, 0x044111u},
     {"MALKS", SET_INDIA, 0x110441u, 0x110441u},
+    {"P.HUS", SET_PSYCH, 0x124449u, 0x124449u}, {"P.MSR", SET_PSYCH, 0x124451u, 0x124451u}, {"P.NEV", SET_PSYCH, 0x144449u, 0x144449u},
+    {"P.USK", SET_PSYCH, 0x114449u, 0x114449u}, {"P.HJZ", SET_PSYCH, 0x114505u, 0x114505u}, {"P.HKR", SET_PSYCH, 0x414505u, 0x414505u},
+    {"P.NHK", SET_PSYCH, 0x214485u, 0x214485u}, {"P.SUB", SET_PSYCH, 0x10C443u, 0x10C443u}, {"P.SU6", SET_PSYCH, 0x10C445u, 0x10C445u},
+    {"P.SEE", SET_PSYCH, 0x10C449u, 0x10C449u}, {"P.KAN", SET_PSYCH, 0x0C4431u, 0x0C4431u}, {"P.KNG", SET_PSYCH, 0x144431u, 0x144431u},
+    {"P.KNN", SET_PSYCH, 0x0C4451u, 0x0C4451u},
 };
 static uint32_t spread12(uint32_t m12)
 {
@@ -184,10 +189,10 @@ static uint32_t slots(const uint8_t *a, uint32_t n)
 }
 static void scale_table_test(void)
 {
-    static const uint8_t PER_SET[NSETS] = {16, 12, 12, 12};
-    uint32_t i, k, n[NSETS] = {0, 0, 0, 0};
+    static const uint8_t PER_SET[NSETS] = {16, 12, 12, 12, 13};
+    uint32_t i, k, n[NSETS] = {0, 0, 0, 0, 0};
     track_t *t = &trk[0];
-    assert(NSCALES == 52 && NSETS == 4);
+    assert(NSCALES == 65 && NSETS == 5);
     for (i = 0; i < NSCALES; i++) {
         const scale_def_t *s = &SCALES[i];
         uint32_t u = s->asc | s->desc;
@@ -203,7 +208,7 @@ static void scale_table_test(void)
         for (k = 0; k < 24u; k++) {
             assert(s->tune[k] >= -25 && s->tune[k] <= 25);                            /* within half a step */
             assert(((u >> k) & 1u) || !s->tune[k]);                                   /* offsets only on degrees */
-            if (s->set == SET_WEST)
+            if (s->set == SET_WEST || s->set == SET_PSYCH)                           /* equal-tempered sets */
                 assert(!s->tune[k]);
         }
         n[s->set]++;
@@ -217,9 +222,10 @@ static void scale_table_test(void)
     }
     for (i = 0; i < NSETS; i++)
         assert(n[i] == PER_SET[i]);
-    /* the sets are contiguous: WEST 0..15, TURK 16..27, ARAB 28..39, INDIA 40..51 */
+    /* the sets are contiguous: WEST 0..15, TURK 16..27, ARAB 28..39, INDIA 40..51, PSYCH 52..64 */
     assert(SCALES[15].set == SET_WEST && SCALES[16].set == SET_TURK && SCALES[27].set == SET_TURK &&
-           SCALES[28].set == SET_ARAB && SCALES[39].set == SET_ARAB && SCALES[40].set == SET_INDIA);
+           SCALES[28].set == SET_ARAB && SCALES[39].set == SET_ARAB && SCALES[40].set == SET_INDIA &&
+           SCALES[51].set == SET_INDIA && SCALES[52].set == SET_PSYCH && SCALES[64].set == SET_PSYCH);
     /* spec: the quarter-tone and ascending / descending forms, as slots from the root */
     {
         static const uint8_t RA[] = {0, 4, 7, 10, 14, 18, 21}, RD[] = {0, 4, 7, 10, 14, 18, 20}, SA[] = {0, 4, 7, 10, 14, 16, 22};
@@ -234,6 +240,19 @@ static void scale_table_test(void)
         assert(((huz->desc >> 11) & 1u) && ((huz->desc >> 13) & 1u) && !((huz->desc >> 9) & 1u) && !((huz->desc >> 15) & 1u));
         assert(!((yam->asc >> 14) & 1u) && ((yam->desc >> 14) & 1u));                 /* Yaman: no Pa up, Pa down */
     }
+    {   /* PSYCH: the moving slots of each family (slot = quarter tones from the root) */
+        static const uint8_t HUS[] = {0, 3, 6, 10, 14, 17, 20}, SUB[] = {0, 1, 6, 10, 14, 15, 20}, NHK[] = {0, 2, 7, 10, 14, 16, 21},
+                             KAN[] = {0, 4, 5, 10, 14, 18, 19};
+        assert(SCALES[sc_code("P.HUS")].asc == slots(HUS, sizeof HUS));               /* neutral 2nd + neutral 6th */
+        assert(SCALES[sc_code("P.SUB")].asc == slots(SUB, sizeof SUB));               /* subminor 2nd + subminor 6th */
+        assert(SCALES[sc_code("P.NHK")].asc == slots(NHK, sizeof NHK));               /* neutral 3rd + neutral 7th */
+        assert(SCALES[sc_code("P.KAN")].asc == slots(KAN, sizeof KAN));               /* Kanada: low ga (250 c) + low ni (950 c) */
+        for (k = 0; k < 13u; k++) {                                                   /* every PSYCH scale: a 4th and a 5th, one form */
+            const scale_def_t *p = &SCALES[52u + k];
+            assert(((p->asc >> 10) & 1u) && ((p->asc >> 14) & 1u) && p->asc == p->desc);
+        }
+        assert(scale_set_count(SET_PSYCH) == 13 && scale_set_first(SET_PSYCH) == 52);
+    }
     {   /* the ROOT formatter: 24 names, E-half-flat is 7 */
         char val[8];
         const char *unit = "";
@@ -247,18 +266,18 @@ static void scale_table_test(void)
         assert(!strcmp(val, "C\x01"));
     }
     {   /* task 4.3: what the editor's DESC reply for SCALE is made of (editor.c ed_handle ED_DESC: F_ENUM, names[0..max],
-         * at most 64, each ed_str(name, 8) = name + a 0 byte; the frame: 5 header, scope / id / fmt, min / max / def, label,
+         * at most 128, each ed_str(name, 8) = name + a 0 byte; the frame: 5 header, scope / id / fmt, min / max / def, label,
          * unit, the names, F7, in ed_out[600]). editor.c itself needs the OTA / flash / SysEx plumbing and is not
          * host-compiled; the reply is rebuilt here from the same descriptor. */
         const param_desc_t *d = &TP[P_SCALE];
         uint32_t len = 5 + 3 + 6 + (uint32_t)strlen(d->label) + 1u + (d->unit ? (uint32_t)strlen(d->unit) : 0u) + 1u, i, cnt = 0;
-        assert(d->fmt == F_ENUM && d->names && d->min == 0 && d->max == 51);
-        for (i = 0; i <= (uint32_t)(d->max - d->min) && i < 64u; i++, cnt++) {
-            assert(!strcmp(d->names[i], SCALES[i].code));                             /* the 52 codes, in index order */
+        assert(d->fmt == F_ENUM && d->names && d->min == 0 && d->max == NSCALES - 1);
+        for (i = 0; i <= (uint32_t)(d->max - d->min) && i < 128u; i++, cnt++) {
+            assert(!strcmp(d->names[i], SCALES[i].code));                             /* the 65 codes, in index order */
             len += (uint32_t)strlen(d->names[i]) + 1u;
         }
         len += 1;
-        assert(cnt == 52u && len <= 600u);
+        assert(cnt == NSCALES && len <= 600u);
         printf("scales: editor DESC for SCALE: %u codes in order, a %u byte reply of 600\n", cnt, len);
     }
     /* design D15: choosing a scale never moves the root */
@@ -267,7 +286,7 @@ static void scale_table_test(void)
         t->p[P_SCALE] = (int16_t)i;
         assert(t->p[P_ROOT] == 7 && scale_mask(t) == SCALES[i].asc && scale_index(t) == i);
     }
-    puts("scales: 52 scales frozen (codes, sets, asc / desc masks), WEST rows, Rast / Suznak / Huzam / Yaman forms, root kept ok");
+    puts("scales: 65 scales frozen (codes, sets, asc / desc masks), WEST rows, Rast / Suznak / Huzam / Yaman forms, PSYCH slots, root kept ok");
 }
 
 /* maqam (tasks 3.1, 3.2, 3.6): the 24-bit kb_map / chord_notes against the old 12-bit algorithm, on every WEST
@@ -391,16 +410,17 @@ static void quarter_key_test(void)
 }
 
 /* maqam (follow-up to 4.1): set navigation when a set's members are not contiguous. Built against a header
- * generated with one scale added to arab.txt (index 52, ARAB): cc -DSCALE_TEST_53 -I<dir with that scales.h> */
+ * generated with one scale added to arab.txt (index 65, after PSYCH; ARAB): cc -DSCALE_TEST_53 -I<dir with that scales.h> */
 #ifdef SCALE_TEST_53
 static void noncontiguous_test(void)
 {
-    assert(NSCALES == 53 && SCALES[52].set == SET_ARAB && SCALES[39].set == SET_ARAB);
-    assert(scale_step(39, 1) == 52 && scale_step(52, 1) == 28 && scale_step(28, -1) == 52 && scale_step(52, -1) == 39);
-    assert(scale_next_set(1, 1) == 16 && scale_next_set(20, 1) == 28 && scale_next_set(52, 1) == 40 && scale_next_set(40, 1) == 0);
-    assert(scale_set_count(SET_ARAB) == 13 && scale_set_rank(52) == 12 && scale_set_rank(28) == 0);
+    assert(NSCALES == 66 && SCALES[65].set == SET_ARAB && SCALES[39].set == SET_ARAB);
+    assert(scale_step(39, 1) == 65 && scale_step(65, 1) == 28 && scale_step(28, -1) == 65 && scale_step(65, -1) == 39);
+    assert(scale_next_set(1, 1) == 16 && scale_next_set(20, 1) == 28 && scale_next_set(65, 1) == 40 && scale_next_set(40, 1) == 52 &&
+           scale_next_set(52, 1) == 0 && scale_next_set(0, -1) == 52);
+    assert(scale_set_count(SET_ARAB) == 13 && scale_set_rank(65) == 12 && scale_set_rank(28) == 0);
     assert(scale_step(28, 13) == 28 && scale_step(28, -13) == 28 && scale_step(0, 1) == 1);
-    puts("scales: 53 scales, an ARAB scale at index 52: KNOB 2 wraps through 39 -> 52 -> 28, PRESETS lands on 28 ok");
+    puts("scales: 66 scales, an ARAB scale at index 65: KNOB 2 wraps through 39 -> 65 -> 28, PRESETS lands on 28 ok");
 }
 #endif
 

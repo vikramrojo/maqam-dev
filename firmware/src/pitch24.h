@@ -122,7 +122,7 @@ static inline int32_t p24_cents(const track_t *t, uint32_t note, int32_t cents)
 }
 
 /* ---- scale sets in the SCL layer (task 4.1, D8): the set follows from the scale, nothing more is saved ---- */
-static const char *const N_SET[NSETS] = {"west", "turk", "arab", "india"};
+static const char *const N_SET[NSETS] = {"west", "turk", "arab", "india", "psych"};
 /* flat spellings for the home hint (ASCII: 'd' half-flat, '+' half-sharp) */
 static const char *const N_NOTE24F[24] = {"C", "C\x02", "Db", "D\x01", "D", "D\x02", "Eb", "E\x01", "E", "F\x01", "F", "F\x02",
                                           "Gb", "G\x01", "G", "G\x02", "Ab", "A\x01", "A", "A\x02", "Bb", "B\x01", "B", "C\x01"};
