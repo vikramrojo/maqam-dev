@@ -6,6 +6,9 @@
 #include "fm1_sys.h"
 #include "fm1_irq.h"
 #include "fm1_guard.h"
+#if MAQAM_PRESS
+#include "fm1_press.h"        /* maqam: pressure on held keys (sets fm1_input.h's sense hooks; off by default) */
+#endif
 #include "fm1_input.h"
 #include "fm1_timer.h"
 #include "fm1_audio.h"
@@ -52,6 +55,9 @@
 #define FELUCCA_ARRANGER 1
 #include "arranger.c"
 #include "seq.c"
+#if MAQAM_PRESS
+#include "press.c"           /* maqam: the pressure bend (fm1_press.h) */
+#endif
 #include "audio.c"
 #include "panel.c"
 #include "ui.c"

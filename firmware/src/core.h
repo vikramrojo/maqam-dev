@@ -14,6 +14,9 @@
 enum { V_POLY, V_MONO, V_LEGATO, V_UNISON };   /* P_VOICE */
 #define NSTEP 64
 #define HALF_FRAMES 256          /* I2S half buffer: 5.8 ms at 44.1 kHz */
+#ifndef MAQAM_PRESS
+#define MAQAM_PRESS 0            /* maqam: pressure on held keys bends them (fm1_press.h, press.c): not built by default */
+#endif
 #ifndef FELUCCA_SLICE
 #define FELUCCA_SLICE 0          /* the SLICE engine (eng_slice.c): kept in the tree, not built by default */
 #endif
@@ -96,6 +99,9 @@ enum {                          /* global parameters */
                                              * In a project (project.c: the spare bytes) */
     G_BEND,                     /* SLOOP 2.6, GLO > MIDI 2: the pitch bend's range, 1..12 semitones (a setting of the FM-1) */
     G_INTON,                    /* maqam: intonation, EQUAL / TRADITIONAL (pitch24.h), after upstream's last global */
+#if MAQAM_PRESS
+    G_AFT,                      /* maqam: pressure bends held keys, OFF / ON (press.c; in the MQ block) */
+#endif
     G_COUNT
 };
 

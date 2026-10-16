@@ -120,10 +120,16 @@ Use a synth track (1–3) with a clear sound (a sine-like lead, no glide). Keep 
 ### 4.4 Quarter-tone modifier and the octave buttons
 1. [ ] With **WEST `CHR`**, hold **OCT−** and press **E**. You hear **E half-flat**, and the octave is unchanged afterwards.
 2. [ ] Hold **OCT+** and press **E**: you hear **E half-sharp**.
-3. [ ] Tap **OCT+** alone: the octave goes up **when you let go**. Both OCT buttons together reset the octave.
-4. [ ] On the **drum track (4)**, OCT− and OCT+ still play ghost and hard hits.
-5. [ ] Holding both OCT buttons for 5 s, stopped, still shows the update-mode countdown. Let go before it ends.
-6. [ ] **CHORD+** (SEL 2: STRUM, VLEAD) with chords on in ARAB Rast: chords strum and voice-lead. The chords on E and B are built on E half-flat and B half-flat.
+3. [ ] Hold **E**, then press **OCT−**: E stops and E half-flat plays. Let go of OCT−: E plays again. The same works with OCT+ (E half-sharp).
+4. [ ] Tap **OCT+** once: nothing changes. **Double-tap** it quickly: the octave goes up on the second tap. Both OCT buttons together reset the octave.
+5. [ ] On the **drum track (4)**, OCT− and OCT+ still play ghost and hard hits.
+6. [ ] Holding both OCT buttons for 5 s, stopped, still shows the update-mode countdown. Let go before it ends.
+7. [ ] **CHORD+** (SEL 2: STRUM, VLEAD) with chords on in ARAB Rast: chords strum and voice-lead. The chords on E and B are built on E half-flat and B half-flat.
+
+### 4.4b Chord modes for any scale
+1. [ ] In ARAB Rast on C, hold SEL and turn **KNOB 1** through `power`, `8va`, `sus4`, `quart`, `drone`. Play the white keys in each: every chord sounds open and clear. The tiles read `C5`, `C8`, `C`, `Cq` and `C`.
+2. [ ] In `drone`, every key also plays the C below it (with root D: the D below).
+3. [ ] With **WEST `MAJ`**, `sus4` and `quart` use the scale's notes: F `quart` plays F, B, E.
 
 ### 4.5 CENT: track fine tune and step bends (locks)
 1. [ ] Tap **SEL** twice for **SEL 2**. **KNOB 4 CENT** at −30 makes the whole track audibly flat. Set it back to 0.

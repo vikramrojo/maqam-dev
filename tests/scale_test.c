@@ -385,9 +385,52 @@ static void quarter_key_test(void)
     assert(q == 3 && ch[1] == 67 && ch[2] == 72);
     q = chord_notes(t, 127, ch);                                                      /* past the top: dropped */
     assert(q == 1 && ch[0] == 127);
+    /* 10.7 the maqam chord modes: 8VA; SUS4 and QUART with exact fourths and fifths off WEST (scale degrees on WEST); DRONE */
+    t->p[P_CHORD] = 6;                                                                 /* 8VA: the note and its octave */
+    q = chord_notes(t, 63u | NOTE_Q, ch);
+    assert(q == 2 && ch[0] == (63u | NOTE_Q) && ch[1] == (75u | NOTE_Q));
+    t->p[P_CHORD] = 4;                                                                 /* SUS4 in Rast on E-half-flat: 500 c, 700 c */
+    q = chord_notes(t, 63u | NOTE_Q, ch);
+    assert(q == 3 && ch[1] == (68u | NOTE_Q) && ch[2] == (70u | NOTE_Q));
+    t->p[P_CHORD] = 7;                                                                 /* QUART: 0, 500, 1000 c */
+    q = chord_notes(t, 63u | NOTE_Q, ch);
+    assert(q == 3 && ch[1] == (68u | NOTE_Q) && ch[2] == (73u | NOTE_Q));
+    t->p[P_SCALE] = (int16_t)sc_code("SABA");                                          /* Saba: the scale 4th is diminished; QUART stays exact */
+    t->p[P_ROOT] = 4;                                                                  /* on D */
+    q = chord_notes(t, 62, ch);
+    assert(q == 3 && ch[1] == 67 && ch[2] == 72);
+    t->p[P_CHORD] = 8;                                                                 /* DRONE: the tonic below the key's note */
+    q = chord_notes(t, 69, ch);
+    assert(q == 2 && ch[0] == 62 && ch[1] == 69);
+    q = chord_notes(t, 62, ch);                                                        /* the tonic itself: an octave below */
+    assert(q == 2 && ch[0] == 50 && ch[1] == 62);
+    q = chord_notes(t, 61, ch);                                                        /* below D4: D3 */
+    assert(q == 2 && ch[0] == 50 && ch[1] == 61);
+    t->p[P_ROOT] = 7;                                                                  /* a quarter-tone root: E-half-flat */
+    q = chord_notes(t, 67, ch);
+    assert(q == 2 && ch[0] == (63u | NOTE_Q) && ch[1] == 67);
+    t->p[P_SCALE] = (int16_t)sc_code("MAJ");                                           /* WEST: SUS4 and QUART from the scale, as before */
+    t->p[P_ROOT] = 0;
+    t->p[P_CHORD] = 4;
+    q = chord_notes(t, 65, ch);                                                        /* F: 1 4 5 of C major = F Bb... B (the scale's) */
+    assert(q == 3 && ch[1] == 71 && ch[2] == 72);
+    t->p[P_CHORD] = 7;                                                                 /* F quartal in C: F B E */
+    q = chord_notes(t, 65, ch);
+    assert(q == 3 && ch[1] == 71 && ch[2] == 76);
+    midi_cc_set(t, P_CHORD, 127);                                                      /* a learned CC sweeps upstream's ranges */
+    assert(t->p[P_CHORD] == 5);
+    midi_cc_set(t, P_CHORD, 64);
+    assert(t->p[P_CHORD] == 3);                                                        /* 9TH, as on SLOOP 2.6 */
+    midi_cc_set(t, P_SCALE, 127);
+    assert(t->p[P_SCALE] == 15);
+    midi_cc_set(t, P_ROOT, 127);
+    assert(t->p[P_ROOT] == 22);                                                        /* B: semitone roots only */
+    midi_cc_set(t, P_ROOT, 12);
+    assert(t->p[P_ROOT] == 2);
+    t->p[P_ROOT] = 0; t->p[P_SCALE] = (int16_t)sc_code("MAJ");
     t->p[P_CHORD] = 0;
     (void)c;
-    puts("scales: SNAP / WHITE / chords on the 24-bit masks: WEST identical to the 12-bit algorithm, Rast E, Bayati on D, TRIAD / POWER ok");
+    puts("scales: SNAP / WHITE / chords on the 24-bit masks: WEST identical to the 12-bit algorithm, Rast E, Bayati on D, TRIAD / POWER / 8VA / SUS4 / QUART / DRONE ok");
 }
 
 /* maqam (follow-up to 4.1): set navigation when a set's members are not contiguous. Built against a header

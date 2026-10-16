@@ -51,6 +51,10 @@
 #ifndef FM1_INPUT_IDLE
 #define FM1_INPUT_IDLE() ((void)0)
 #endif
+#ifndef FM1_INPUT_SENSE_TAKE               /* maqam: the pressure hooks of fm1_input_tick (fm1_press.h, MAQAM_PRESS) */
+#define FM1_INPUT_SENSE_TAKE() ((void)0)
+#define FM1_INPUT_SENSE_START(col) ((void)0)
+#endif
 #ifndef FM1_LED_US
 #define FM1_LED_US 40u           /* LED on-time per column (brightness vs scan rate) */
 #endif
@@ -291,6 +295,7 @@ static void fm1_input_tick(void)
     uint32_t ta = a ? FM1__NS_T(FM1_GLOW_NS) : 0u, tb = b ? FM1__NS_T(fm1_led_bg_ns) : 0u;
     uint32_t tmax = ta > tb ? ta : tb;
     fm1__led_lines(0);
+    FM1_INPUT_SENSE_TAKE();                        /* (maqam: a sampled row an input again before the read) */
     fm1_in.raw[p] = (uint8_t)fm1__rows();          /* column p has been latched one tick (the lines dark) */
     if (tmax) {
         uint32_t t0 = fm1_ticks(), cur = lit | a | (tb ? b : 0u), on, d;
@@ -310,6 +315,7 @@ static void fm1_input_tick(void)
         fm1__sr_word(w);
     }
     fm1__led_lines(fm1_led[n]);
+    FM1_INPUT_SENSE_START(n);                      /* (maqam: column n latched: its sample until the next tick) */
     fm1__tick_col = (uint8_t)n;
     fm1__keys(p);                                  /* its keys now: no wait for the frame's end */
     if (n == 0u)

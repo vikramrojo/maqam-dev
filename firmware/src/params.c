@@ -57,7 +57,7 @@ static const char *const N_SYNC[] = {"INT", "USB", "TRS"};   /* G_SYNC: the temp
 static const char *const N_GO[] = {"--", "GO"};
 static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_OFF .. SL_STUT (slicer.c) */
 static const char *const N_SLDIV[] = {"1/8", "1/16", "1/32", "8T", "16T", "32T"};   /* SL_DEN */
-static const char *const N_CHORD[] = {"OFF", "TRIAD", "7TH", "9TH", "SUS4", "POWER"};   /* seq.c CHORD_DEG */
+static const char *const N_CHORD[] = {"OFF", "TRIAD", "7TH", "9TH", "SUS4", "POWER", "8VA", "QUART", "DRONE"};   /* seq.c CHORD_DEG (maqam: + 8VA QUART DRONE) */
 static const char *const N_ROLL[] = {"1/8", "1/16", "1/32", "32T", "1/64"};   /* seq.c ROLL_DEN */
 static const char *const N_ENGNAME[] = {"ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN",
                                         "FM6", "PHYS", "NOISE",
@@ -196,6 +196,9 @@ static const param_desc_t GP[G_COUNT] = {
     [G_TXDUCK] = PE("DUCK", N_ONOFF, 0),          /* ON: the kick pumps it too (GLO > MASTER > DUCK) */
     [G_BEND] = PD("BEND", F_SEMI, 1, 12, 2),      /* 2.6, GLO > MIDI 2: MIDI pitch bend's range (a setting of the FM-1) */
     [G_INTON] = PE("INTON", N_INTON, 1),            /* maqam: default TRADITIONAL */
+#if MAQAM_PRESS
+    [G_AFT] = PE("AFT", N_AFT, 0),                  /* maqam: pressure bend, default OFF */
+#endif
 };
 
 static const param_desc_t DRUM_KIT_DESC = PE("KIT", DRUM_KIT_NAMES, 0);
@@ -417,6 +420,9 @@ static const page_t PAGES[] = {
                                                                            * SYSTEM too, the drums' channel on DRUMS) */
     {"TEXTURE", FAM_GLO, SC_GLOBAL, GR_NONE, {G_TXSRC, G_TXLVL, G_TXTONE, G_TXMOVE}},   /* 2.6: the bed under the mix */
     {"TEXTURE 2", FAM_GLO, SC_GLOBAL, GR_NONE, {G_TXRATE, G_TXWHEN, G_TXDUCK, 0xFF}},
+#if MAQAM_PRESS
+    {"PRESS", FAM_GLO, SC_GLOBAL, GR_NONE, {G_AFT, 0xFF, 0xFF, 0xFF}},   /* maqam: the pressure bend */
+#endif
     {"PRESETS", FAM_SAVE, SC_GLOBAL, GR_BROWSE, {0xFF, 0xFF, 0xFF, 0xFF}},   /* browser: PRESETS knob / KNOB 1 */
     {"USER", FAM_SAVE, SC_GLOBAL, GR_USER, {0xFF, 0xFF, 0xFF, 0xFF}},       /* user presets: SLOT LOAD ERASE SAVE */
     {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, 0xFF, G_LOAD, G_SAVE}},   /* (KNOB 2: ERASE, 2.6: ui_input.c) */

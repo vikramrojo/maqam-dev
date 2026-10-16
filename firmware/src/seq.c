@@ -28,6 +28,7 @@ static uint32_t kb_prev;
 enum { KS_NONE, KS_NOTE, KS_DRUM, KS_ROLL, KS_ERASE, KS_FX, KS_UI, KS_MOD };   /* KS_MOD: a chord modifier (2.4) */
 static uint8_t kb_kind[27], kb_trk[27], kb_n[27], kb_nt[27][4], kb_root[27];   /* kb_root: a chord key's note (CHORD+) */
 static uint8_t kb_dir[27];                  /* maqam: the direction (asc / desc form) a key's note was played in: its chord changes follow it */
+static uint8_t kb_ord[27];                  /* maqam: the order the keys went down in (kb_repress: the last one last) */
 static int8_t kb_oct[27];                   /* the octave buttons when the key went down (arp_add: held_key, #191) */
 static uint8_t last_note = 60;
 static uint8_t pen_n = 1, pen_note[4] = {60};   /* the last chord / note played: the SEQ layer writes it */
@@ -187,6 +188,12 @@ static uint32_t kb_pitch(const track_t *t, uint32_t k, int32_t oct)
     uint32_t r = kb_quant(t, k, 0, 0, oct);
     return r == P24_SILENT ? KB_SILENT : r;
 }
+/* maqam: the OCT- / OCT+ quarter tone for the keys now (-1 / 0 / +1; 0 while a layer uses the buttons) */
+static int32_t kb_oct_mod(void)
+{
+    return oct_mod(fm1_in.buttons, dyn_bit[0], dyn_bit[1], ly_bit[LY_FX] | ly_bit[LY_ERASE] | ly_bit[LY_STEP] |
+                   ly_bit[LY_SCALE] | ly_bit[LY_MIX] | ly_bit[LY_SONG]);
+}
 /* key k -> note on track t (KB_SILENT: none) */
 static uint32_t kb_map(const track_t *t, uint32_t k)
 {
@@ -201,8 +208,7 @@ static uint32_t kb_map(const track_t *t, uint32_t k)
 #endif
     {   /* maqam: SNAP / WHITE / chromatic on the 24-bit mask, the direction of play, the OCT-/OCT+ quarter tone (pitch24.h) */
         uint32_t desc = k < kb_last_key[trk_index(t) % NTRK] && (uint32_t)(fm1_ms - kb_last_ms[trk_index(t) % NTRK]) <= KB_DIR_PAUSE_MS, r;   /* (a pause of a second: ascending) */
-        int32_t mod = oct_mod(fm1_in.buttons, dyn_bit[0], dyn_bit[1], ly_bit[LY_FX] | ly_bit[LY_ERASE] | ly_bit[LY_STEP] |
-                              ly_bit[LY_SCALE] | ly_bit[LY_MIX] | ly_bit[LY_SONG]);
+        int32_t mod = kb_oct_mod();
         kb_desc_now = (uint8_t)desc;
         r = kb_quant(t, k, desc, mod, song.octave);
         return r == P24_SILENT ? KB_SILENT : r;
@@ -211,24 +217,41 @@ static uint32_t kb_map(const track_t *t, uint32_t k)
 
 /* chord mode (P_CHORD): the chord of the scale built on note n (in the scale; CHR: minor), into c[];
  * the notes it holds (<= 4, the most a step keeps) */
-static const int8_t CHORD_DEG[6][4] = {
+static const int8_t CHORD_DEG[9][4] = {
     {0, -1, -1, -1},                     /* OFF */
     {0, 2, 4, -1},                       /* TRIAD: 1 3 5 */
     {0, 2, 4, 6},                        /* 7TH: 1 3 5 7 */
     {0, 2, 6, 8},                        /* 9TH: 1 3 7 9 (the lo-fi / R&B voicing) */
     {0, 3, 4, -1},                       /* SUS4: 1 4 5 */
     {0, -1, -1, -1},                     /* POWER: 1 5 8 (semitones, below) */
+    {0, -1, -1, -1},                     /* maqam: 8VA, QUART, DRONE (below) */
+    {0, 3, 6, -1},
+    {0, -1, -1, -1},
 };
+/* maqam: the chord modes for any scale (task 10.7). The outer frame exact (the octave, a 700 c fifth, 500 c fourths:
+ * no neutral interval stacked), so they sound clear on every set; WEST keeps its diatonic SUS4 and QUART */
+enum { CH_POWER = 5, CH_8VA = 6, CH_QUART = 7, CH_DRONE = 8, CH_N = 9 };
+static int chord_exact(const track_t *t) { return t->p[P_SCALE] && SCALES[scale_index(t)].set != SET_WEST; }
 static uint32_t chord_notes(const track_t *t, uint32_t n, uint8_t *c)
 {
-    uint32_t type = (uint32_t)clamp(t->p[P_CHORD], 0, 5);
+    uint32_t type = (uint32_t)clamp(t->p[P_CHORD], 0, CH_N - 1);
     uint32_t mask = scale_dir_mask(t->p[P_SCALE] ? &SCALES[scale_index(t)] : &SCALES[2], kb_desc_now);   /* maqam: 24-bit mask, the key's direction */
     uint32_t k = 0, j;
-    if (type == 5u) {
-        static const uint8_t PW[3] = {0, 14, 24};          /* maqam: quarter tones: root, fifth, octave */
-        for (j = 0; j < 3u; j++)
-            if (note_p24(n) + PW[j] < 256u)
-                c[k++] = (uint8_t)note_from_p24(note_p24(n) + PW[j]);
+    if (type == CH_POWER || type == CH_8VA || (chord_exact(t) && (type == 4u || type == CH_QUART))) {
+        static const uint8_t FR[4][4] = {{0, 14, 24, 255}, {0, 24, 255, 255}, {0, 10, 14, 255}, {0, 10, 20, 255}};   /* maqam: quarter tones */
+        const uint8_t *f = FR[type == CH_POWER ? 0 : type == CH_8VA ? 1 : type == 4u ? 2 : 3];   /* POWER 1 5 8, 8VA 1 8, SUS4 1 4 5, QUART 1 4 b7 */
+        for (j = 0; j < 4u && f[j] != 255u; j++)
+            if (note_p24(n) + f[j] < 256u)
+                c[k++] = (uint8_t)note_from_p24(note_p24(n) + f[j]);
+        return k;
+    }
+    if (type == CH_DRONE) {                              /* the key's note over the tonic (the root just below it) */
+        int32_t p = (int32_t)note_p24(n), r = p - (((p - t->p[P_ROOT]) % 24 + 24) % 24);
+        if (r == p)
+            r -= 24;
+        if (r >= 0)
+            c[k++] = (uint8_t)note_from_p24((uint32_t)r);
+        c[k++] = (uint8_t)n;
         return k;
     }
     for (j = 0; j < 4u && CHORD_DEG[type][j] >= 0; j++) {
@@ -279,11 +302,11 @@ static void sort_notes(uint8_t *c, uint32_t n)
 /* the chord of white key n with the modifiers held, voiced (VLEAD); its notes (<= 4) into c[] */
 static uint32_t chord_play_notes(track_t *t, uint32_t n, uint32_t mods, uint8_t *c)
 {
-    uint32_t k = chord_notes(t, n, c), j, type = (uint32_t)clamp(t->p[P_CHORD], 0, 5), part = trk_index(t);
+    uint32_t k = chord_notes(t, n, c), j, type = (uint32_t)clamp(t->p[P_CHORD], 0, CH_N - 1), part = trk_index(t);
     uint8_t u[4];                                       /* the chord as p24 */
     for (j = 0; j < k; j++)
         u[j] = (uint8_t)note_p24(c[j]);
-    if (type != 5u && k >= 2u && mods) {                /* (POWER: the inversion only) */
+    if (type < CH_POWER && !(type == 4u && chord_exact(t)) && k >= 2u && mods) {   /* (POWER and the maqam modes: the inversion only) */
         uint32_t third = scale_up(t, n, 2u);
         for (j = 0; j < k; j++) {
             if (u[j] == third && (mods & CM_SUS4))
@@ -314,7 +337,7 @@ static uint32_t chord_play_notes(track_t *t, uint32_t n, uint32_t mods, uint8_t 
         }
     }
     sort_notes(u, k);
-    if (t->p[P_VLEAD] && part < NPART && vl_n[part] && k) {   /* the inversion and octave nearest the last chord */
+    if (t->p[P_VLEAD] && type != CH_DRONE && part < NPART && vl_n[part] && k) {   /* (maqam: DRONE keeps the tonic below) */   /* the inversion and octave nearest the last chord */
         uint8_t best[4], cand[4];
         int32_t bcost = 0x7FFFFFFF, inv, oct;
         for (inv = 0; inv < (int32_t)k; inv++)
@@ -341,7 +364,7 @@ static uint32_t chord_play_notes(track_t *t, uint32_t n, uint32_t mods, uint8_t 
         if (bcost != 0x7FFFFFFF)
             memcpy(u, best, k);
     }
-    if ((mods & CM_INV) && k >= 2u && u[0] + 24u < 256u) {   /* an inversion: the lowest an octave up */
+    if ((mods & CM_INV) && type != CH_DRONE && k >= 2u && u[0] + 24u < 256u) {   /* an inversion: the lowest an octave up */
         u[0] = (uint8_t)(u[0] + 24u);
         sort_notes(u, k);
     }
@@ -993,6 +1016,12 @@ static uint8_t held_key[NTRK][16];
 static int8_t held_dt[NTRK][16];                  /* (maqam: in quarter tones, p24) */
 static uint8_t held_dir[NTRK][16];                /* maqam: the direction (asc / desc form) the key was played in */
 static uint8_t in_key;
+/* maqam: key k's note on t without the OCT quarter tone, in the form and octave it was played in (else kb_root) */
+static uint32_t kb_plain(const track_t *t, uint32_t k)
+{
+    uint32_t r = kb_quant(t, k, kb_dir[k], 0, kb_oct[k]);
+    return r == P24_SILENT ? kb_root[k] : r;
+}
 static void arp_add(track_t *t, uint32_t note)
 {
     uint32_t i;
@@ -1006,7 +1035,8 @@ static void arp_add(track_t *t, uint32_t note)
         uint32_t k = in_key - 1u, ti = trk_index(t);
         held_key[ti][t->nheld] = in_key && kb_scaled(t) ? (uint8_t)(in_key | (uint32_t)(kb_oct[k % 27u] + 3) << 5) : 0u;   /* (the
                                                        * key's octave: a CHORD+ note added after OCT moved, too) */
-        held_dt[ti][t->nheld] = (int8_t)(held_key[ti][t->nheld] ? (int32_t)note_p24(note) - (int32_t)note_p24(kb_root[k % 27u]) : 0);   /* maqam: p24 */
+        held_dt[ti][t->nheld] = (int8_t)(held_key[ti][t->nheld] ? (int32_t)note_p24(note) - (int32_t)note_p24(kb_plain(t, k % 27u)) : 0);   /* maqam: p24, above
+                                                       * the key without OCT's quarter tone (arp_next re-pitches without it) */
         held_dir[ti][t->nheld] = kb_dir[k % 27u];   /* maqam */
         t->held[t->nheld++] = (uint8_t)note;
     }
@@ -1181,7 +1211,7 @@ static uint32_t in_chord_n, in_chord_i;
  * go keep sounding (their note-off waits: the arp keeps them, a recording holds them) until it is up; a note played
  * again meanwhile is held by its key again. Per track: the pedal, the notes waiting */
 static uint8_t sus_on[NTRK];
-static uint32_t sus_wait[NTRK][4];
+static uint32_t sus_wait[NTRK][8];                 /* maqam: 256 bits (a quarter tone's note byte has bit 7) */
 static void input_off_now(track_t *t, uint32_t note);
 static void input_on(track_t *t, uint32_t note, uint32_t vel)
 {
@@ -1192,7 +1222,7 @@ static void input_on(track_t *t, uint32_t note, uint32_t vel)
     last_note = (uint8_t)note;
     {   /* (2.6) played again under the pedal: the note-off it waited with first (the arp's key count, a recording's
          * note end), then this one held by its key */
-        uint32_t *w = &sus_wait[trk_index(t) % NTRK][(note >> 5) & 3u], bit = 1u << (note & 31u);
+        uint32_t *w = &sus_wait[trk_index(t) % NTRK][(note >> 5) & 7u], bit = 1u << (note & 31u);
         if (*w & bit) {
             *w &= ~bit;
             input_off_now(t, note);
@@ -1221,7 +1251,7 @@ static void input_off(track_t *t, uint32_t note)
         return;
     }
     if (sus_on[trk_index(t) % NTRK]) {               /* the pedal down: it waits for the pedal (2.6) */
-        sus_wait[trk_index(t) % NTRK][(note >> 5) & 3u] |= 1u << (note & 31u);
+        sus_wait[trk_index(t) % NTRK][(note >> 5) & 7u] |= 1u << (note & 31u);
         return;
     }
     input_off_now(t, note);
@@ -1431,6 +1461,66 @@ static void chord_revoice(uint32_t sel)
     }
 }
 
+/* maqam: OCT- / OCT+ went down or up: the keys held on part sel play again, a quarter tone off (or back to the key's
+ * note); a new attack, recorded as if played that way. kb_root keeps the key's note, kb_dir and kb_oct its form */
+static void kb_repress(uint32_t sel, int32_t mod)
+{
+    uint32_t done = 0, i, n, mc = trk_midi_ch(sel), ti = sel % NTRK;
+    track_t *t = &trk[ti];
+    if (!kb_scaled(t))
+        return;
+    for (;;) {
+        uint32_t k = 27u, j;
+        uint8_t nw[4], nn;
+        for (j = 0; j < 27u; j++)                   /* the keys in the order they went down: MONO keeps the last */
+            if (kb_kind[j] == KS_NOTE && kb_trk[j] == sel && !((done >> j) & 1u) && (k == 27u || kb_ord[j] < kb_ord[k]))
+                k = j;
+        if (k == 27u)
+            return;
+        done |= 1u << k;
+        n = kb_quant(t, k, kb_dir[k], mod, kb_oct[k]);
+        if (n == P24_SILENT || n == kb_root[k])
+            continue;
+        kb_desc_now = kb_dir[k];
+        if (t->p[P_CHORD]) {
+            nn = (uint8_t)chord_play_notes(t, n, chord_mods(), nw);
+        } else {
+            nw[0] = (uint8_t)n;
+            nn = 1;
+        }
+        if (t->p[P_AMODE] && nn == kb_n[k]) {       /* the arp: its notes change in place (no restart, nothing latched twice) */
+            for (i = 0; i < nn; i++)
+                for (j = 0; j < t->nheld; j++)
+                    if (t->held[j] == kb_nt[k][i] && (held_key[ti][j] & 31u) == k + 1u) {
+                        t->held[j] = nw[i];
+                        held_dt[ti][j] = (int8_t)((int32_t)note_p24(nw[i]) - (int32_t)note_p24(kb_plain(t, k)));
+                        break;
+                    }
+            kb_root[k] = (uint8_t)n;
+            memcpy(kb_nt[k], nw, nn);
+            continue;
+        }
+        for (i = 0; i < kb_n[k]; i++) {
+            input_off(t, kb_nt[k][i]);
+            midi_out_note(mc, note_semi(kb_nt[k][i]), 0);
+        }
+        kb_root[k] = (uint8_t)n;
+        memcpy(kb_nt[k], nw, nn);
+        kb_n[k] = nn;
+        in_key = (uint8_t)(k + 1u);
+        for (i = 0; i < kb_n[k]; i++) {
+            in_chord = kb_n[k] > 1u ? kb_nt[k] : 0;
+            in_chord_n = kb_n[k];
+            in_chord_i = i;
+            p24_midi_mark(t, kb_nt[k][i], 0);
+            input_on(t, kb_nt[k][i], 100);
+            in_chord = 0;
+            midi_out_note(mc, note_semi(kb_nt[k][i]), 100u);
+        }
+        in_key = 0;
+    }
+}
+
 static void key_down(uint32_t k)
 {
     uint32_t layer = layer_now(), sel = song.sel % NTRK, i, mc;
@@ -1537,6 +1627,16 @@ static void key_down(uint32_t k)
         kb_root[k] = (uint8_t)n;
         kb_dir[k] = kb_desc_now;                    /* maqam: (set by the kb_map just above) */
         kb_oct[k] = (int8_t)song.octave;
+        {
+            static uint8_t ord;
+            uint32_t j;
+            if (++ord == 0u) {                      /* (wrapped: renumber the keys held, in their order) */
+                for (j = 0; j < 27u; j++)
+                    kb_ord[j] = (uint8_t)(kb_ord[j] >> 1);
+                ord = 128;
+            }
+            kb_ord[k] = ord;
+        }
         if (t->p[P_CHORD]) {
             kb_n[k] = (uint8_t)chord_play_notes(t, n, chord_mods(), kb_nt[k]);   /* (the modifiers held, voiced) */
         } else {
@@ -1645,12 +1745,21 @@ static void keyboard_block(void)
 {
     uint32_t cur = fm1_in.notes, ch = cur ^ kb_prev, k, r;
     audition_block();
+    PRESS_BLOCK();                                    /* maqam: pressure on the keys held (MAQAM_PRESS) */
     if (er_mute && layer_now() != LY_ERASE)
         er_mute = 0;                                  /* EDIT let go: its keys erase again (2.6) */
     if (!(layer_buttons() & ly_bit[LY_ROLL]))         /* ARP up (and not locked): the rolls end (the keys stay silent) */
         for (r = 0; r < NROLL; r++)
             if (roll[r].on)
                 roll_end(r);
+    {   /* maqam: OCT- / OCT+ with keys held re-press them (before this frame's keys: a key with OCT is played modified) */
+        static int8_t mod_prev;
+        int32_t mod = kb_oct_mod();
+        if (mod != mod_prev) {
+            mod_prev = (int8_t)mod;
+            kb_repress(song.sel % NTRK, mod);
+        }
+    }
     if (!ch)
         return;
     for (k = 0; k < 27u; k++) {
@@ -2205,7 +2314,7 @@ static void sus_set(track_t *t, int on)
     sus_on[ti] = (uint8_t)(on != 0);
     if (on)
         return;
-    for (n = 0; n < 128u; n++)
+    for (n = 0; n < 256u; n++)
         if ((sus_wait[ti][n >> 5] >> (n & 31u)) & 1u) {
             sus_wait[ti][n >> 5] &= ~(1u << (n & 31u));
             input_off(t, n);
@@ -2215,6 +2324,14 @@ static void midi_cc_set(track_t *t, uint32_t id, uint32_t value)
 {
     const param_desc_t *d = is_drum(t) && id == P_E0 ? &DRUM_KIT_DESC
                             : id >= P_E0 ? &ENGINES[t->eng_req % NENGINES]->edit[(id - P_E0) & 7u] : &TP[id % P_COUNT];
+    if (id == P_ROOT) {                                 /* maqam: a learned CC sweeps upstream's ranges, so a controller set up */
+        t->p[P_ROOT] = (int16_t)(2 * (((int32_t)(value & 127u) * 11 + 63) / 127));   /* on SLOOP picks the same: */
+        return;                                         /* ROOT the 12 semitone roots, SCALE the 16 WEST scales, */
+    }                                                   /* CHORD OFF..POWER (the fork's from the panel and the editor) */
+    if (id == P_SCALE || id == P_CHORD) {
+        t->p[id] = (int16_t)(((int32_t)(value & 127u) * (id == P_SCALE ? 15 : CH_POWER) + 63) / 127);
+        return;
+    }
     if (d->max > d->min)
         t->p[id % P_COUNT] = (int16_t)(d->min + ((int32_t)(value & 127u) * (d->max - d->min) + 63) / 127);
 }
@@ -2493,7 +2610,7 @@ static void events_block(uint32_t n)
             } else {
                 trk_all_off(t);
             }
-            sus_wait[i][0] = sus_wait[i][1] = sus_wait[i][2] = sus_wait[i][3] = 0;   /* (what the pedal held: gone too, */
+            memset(sus_wait[i], 0, sizeof sus_wait[i]);   /* (what the pedal held: gone too, */
             sus_on[i] = 0;                                                         /* and the pedal: never stuck) */
             t->nheld = 0;
             t->arp_phys = 0;

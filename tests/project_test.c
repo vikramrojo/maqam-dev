@@ -534,6 +534,36 @@ int main(void)
         bad += check("a section applies roots and CENT (clamped to -63) but not INTON", song.g[G_INTON] == 1 && trk[0].p[P_ROOT] == 7 &&
                      trk[0].p[P_CENT] == -63);
     }
+#if MAQAM_PRESS
+    /* ---- maqam (MAQAM_PRESS): AFT in the MQ block's bytes 9..10, after its check: older readers and SLOOP 2.6 unaffected */
+    {
+        static project_t a;
+        uint32_t k, inton, half;
+        int32_t cent[NTRK];
+        host_tracks_init();
+        song.g[G_AFT] = 1;
+        song.g[G_INTON] = 0;
+        proj_capture(&a);
+        bad += check("AFT: the MQ v1 block still valid with AFT in it (an older fork build reads it)",
+                     proj_mq_get(&a, &inton, &half, cent) && inton == 0u);
+        song.g[G_AFT] = 0;
+        proj_apply(&a, 1);
+        bad += check("AFT: ON round-trips", song.g[G_AFT] == 1);
+        proj_apply(&a, 0);
+        bad += check("AFT: a song section leaves it", song.g[G_AFT] == 1);
+        a.g[MQ_G[5]] ^= 0x0001;                                     /* byte 10: the complement wrong */
+        proj_apply(&a, 1);
+        bad += check("AFT: a damaged field -> OFF, the rest of the block kept", song.g[G_AFT] == 0 && song.g[G_INTON] == 0);
+        song.g[G_AFT] = 1;
+        song.g[G_INTON] = 0;
+        proj_capture(&a);
+        for (k = 0; k < 6u; k++)
+            a.g[MQ_G[k]] = 0;                                       /* a SLOOP 2.6 project */
+        proj_apply(&a, 1);
+        bad += check("AFT: a SLOOP 2.6 project -> OFF", song.g[G_AFT] == 0 && song.g[G_INTON] == 1);
+        song.g[G_AFT] = 0;
+    }
+#endif
     printf("%s\n", bad ? "PROJECT FORMAT TEST FAILED" : "project format test passed");
     return bad != 0;
 }
