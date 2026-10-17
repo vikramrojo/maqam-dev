@@ -1,6 +1,6 @@
 # The scale screens: a visual guide
 
-How to read and work the screens for SLOOP's 52 scales (Western, Turkish, Arabic, Indian), quarter tones and step bends (the CENT lock). The images are the firmware's own screen, rendered on a computer: what you see on the FM-1 is the same.
+How to read and work the screens for SLOOP's 73 scales (Western, Turkish, Arabic, Indian, microtonal psych, jins combinations), quarter tones and step bends (the CENT lock). The images are the firmware's own screen, rendered on a computer: what you see on the FM-1 is the same.
 
 Two words used throughout:
 - **Half-flat** (written `Ed` in text, and `E` with a reversed flat on the screen) is a quarter tone, 50 cents, below the note: E half-flat sits halfway between E♭ and E.
@@ -44,7 +44,7 @@ What the tiles show:
 | **a key** (white or black) | sets the root to that note |
 | **OCT− + a key** | root a quarter tone lower: OCT− + E = E half-flat |
 | **OCT+ + a key** | root a quarter tone higher |
-| **PRESETS** | the scale **set**: WEST → TURK → ARAB → INDIA (jumps to the set's first scale) |
+| **PRESETS** | the scale **set**: WEST → TURK → ARAB → INDIA → PSYCH → JINS (jumps to the set's first scale) |
 | **KNOB 1 chord** | chord mode: off, triad, 7th, 9th, sus4, power |
 | **KNOB 2 scale** | the scale, within the current set (it wraps around) |
 | **KNOB 3 keys** | how the keys play the scale: off, snap, white (see below) |
@@ -104,7 +104,7 @@ The dim tiles here (D, E, A, B) are keys with no note of Segah nearby. `HOME` sh
 
 The top row has four values, one per knob: **ROOT**, **SCL** (scale), **QNT** (keys mode) and **CHORD**.
 - They apply to **the selected track only**.
-- Here KNOB 2 steps through **all 52 scales in one list**, in the same order as the sets: WEST, then TURK, ARAB and INDIA. The bar under each value shows its position.
+- Here KNOB 2 steps through **all 73 scales in one list**, in the same order as the sets: WEST, then TURK, ARAB, INDIA, PSYCH and JINS. The bar under each value shows its position.
 
 ### The diagram, explained
 

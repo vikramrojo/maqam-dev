@@ -982,7 +982,7 @@ const parse = {
   [CMD.DESC](a) {
     const r = new Reader(a);
     const o = { scope: r.b(), id: r.b(), fmt: r.b(), min: r.v(), max: r.v(), def: r.v(), label: r.s(), unit: r.s(), names: [] };
-    if (o.fmt === F.ENUM) for (let i = 0; i <= o.max - o.min && i < 64 && r.i < a.length; i++) o.names.push(r.s());
+    if (o.fmt === F.ENUM) for (let i = 0; i <= o.max - o.min && i < 128 && r.i < a.length; i++) o.names.push(r.s());
     return o;
   },
   [CMD.STEP_GET](a) {
@@ -2395,7 +2395,7 @@ function makeMockDevice(opt = {}) {
     D("PIT", F.BIPCT, -64, 63, 0), D("FLT", F.BIPCT, -64, 63, 0), D("SHP", F.BIPCT, -64, 63, 0), D("AMP", F.PCT, 0, 127, 0),
     E("MODE", ["OFF", "UP", "DN", "UPDN", "RND", "ORD"], 0), E("RATE", NDIV, 2), D("OCT", F.INT, 1, 4, 1), D("GATE", F.PCT, 1, 127, 64),
     D("SWG", F.SWING, 0, 100, 0), D("PROB", F.PCT, 0, 127, 127), E("HOLD", NONOFF, 0), E("ORD", ["NOTE", "PLAY"], 0),
-    D("ROOT", F.NOTE, 0, 23, 0), E("SCL", ["CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM", "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH", "T.RST", "USSAK", "HUSEY", "KURDI", "NIHAV", "HICAZ", "HCKAR", "SUZIN", "KARCI", "T.SBA", "SEGAH", "HUZZM", "RAST", "BAYAT", "SABA", "SIKAH", "HIJAZ", "NAHAW", "KURD", "AJAM", "NIKRZ", "HJKAR", "SUZNK", "HUZAM", "YAMAN", "BILAW", "KHMAJ", "KAFI", "ASAVR", "BHRVI", "BHAIR", "TODI", "PURVI", "MARWA", "BHUPL", "MALKS"], 0), E("QNT", ["OFF", "SNAP", "WHITE"], 0), D("TRN", F.SEMI, -24, 24, 0),
+    D("ROOT", F.NOTE, 0, 23, 0), E("SCL", ["CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM", "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH", "T.RST", "USSAK", "HUSEY", "KURDI", "NIHAV", "HICAZ", "HCKAR", "SUZIN", "KARCI", "T.SBA", "SEGAH", "HUZZM", "RAST", "BAYAT", "SABA", "SIKAH", "HIJAZ", "NAHAW", "KURD", "AJAM", "NIKRZ", "HJKAR", "SUZNK", "HUZAM", "YAMAN", "BILAW", "KHMAJ", "KAFI", "ASAVR", "BHRVI", "BHAIR", "TODI", "PURVI", "MARWA", "BHUPL", "MALKS", "P.HUS", "P.MSR", "P.NEV", "P.USK", "P.NHK", "P.HKR", "P.HJZ", "P.SUB", "P.SU6", "P.SEE", "P.BHL", "P.CHG", "P.HMY", "P.RST", "P.ACR", "P.MHR", "J.KGL", "J.NRZ", "J.SZK", "J.HJR", "J.DRB"], 0), E("QNT", ["OFF", "SNAP", "WHITE"], 0), D("TRN", F.SEMI, -24, 24, 0),
     D("LEN", F.STEPS, 1, 64, 16), E("DIV", NSDIV, 2), D("SWG", F.SWING, 0, 100, 0), D("GATE", F.PCT, 1, 127, 64),
     D("DST", F.PCT, 0, 127, 0), D("CHO", F.PCT, 0, 127, 0), D("DLY", F.PCT, 0, 127, 0), D("REV", F.PCT, 0, 127, 0),
     E("VCE", ["POLY", "MONO", "LEG", "UNI"], 0), D("GLD", F.TIME, 0, 127, 0), D("PAN", F.BIPCT, -64, 63, 0), E("MUTE", NONOFF, 0),
@@ -2922,7 +2922,7 @@ function makeMockDevice(opt = {}) {
         const d = desc(a[0], a[1]);
         if (!d) return null;
         b(a[0]); b(a[1]); b(d.fmt); v(d.min); v(d.max); v(d.def); s(d.label); s(d.unit || "");
-        if (d.fmt === F.ENUM && d.names) for (let i = 0; i <= d.max - d.min && i < 64; i++) s(d.names[i]);
+        if (d.fmt === F.ENUM && d.names) for (let i = 0; i <= d.max - d.min && i < 128; i++) s(d.names[i]);
         break;
       }
       case CMD.STEP_GET: case CMD.STEP_SET: {
