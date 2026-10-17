@@ -9,7 +9,7 @@
 #
 # Four families, 4 + 3 + 3 + 3, built the way the slides analyse KGLW's scales: tetrachord symmetry.
 # Each is a 12-TET frame of five notes plus a pair of notes that move, one in each tetrachord (the 2nd
-# and 6th, or the 3rd and 7th). The symmetric scale puts both on the same rung; the others are hybrids.
+# and 6th, or the 3rd and 7th). The core, listed first, puts both on the same rung; the others are variations.
 #   HUSEYNI (4)   frame 1 b3 4 5 b7    slot 2: neutral (150) | major (200)   slot 6: minor | neutral | major
 #   HIJAZ (3)     frame 1 b2 4 5 b6    slot 3: neutral (350) | major (400)   slot 7: b7 | neutral (1050) | maj 7
 #   SUBMINOR (3)  frame 1 b3 4 5 b7    slot 2: subminor (50) | minor | neutral   slot 6: subminor (750) | minor
@@ -34,15 +34,15 @@ scale P.NEV "Neva" home A       # Bayati + Nahawand on 5 (Turkish Neva ends on d
 scale P.USK "Ussak" home A      # Bayati + Kurd on 5. KGLW: Pleura, Minimum Brain Size guitar (C#)
   up   0. 150. 300. 500. 700. 800. 1000.
 
-# ---- HIJAZ family: augmented 2nd narrowed to neutral in the 3rd and/or 7th ----
-scale P.HJZ "Hijaz" home D      # Hijaz + Nahawand on 5 (Phrygian dominant, equal-tempered)
-  up   0. 100. 400. 500. 700. 800. 1000.
+# ---- HIJAZ family: the core narrows both augmented 2nds to neutral; Hicazkar is its 12-TET twin ----
+scale P.NHK "NeutHkar" home G   # core: neutral 3rd + neutral 7th (2-5-3 | 2-5-3). KGLW: Static Electricity, East West Link (G)
+  up   0. 100. 350. 500. 700. 800. 1050.
 
 scale P.HKR "Hicazkar" home G   # Hijaz + Hijaz on 5 (double harmonic, equal-tempered)
   up   0. 100. 400. 500. 700. 800. 1100.
 
-scale P.NHK "NeutHkar" home G   # neutral 3rd + neutral 7th. KGLW: Static Electricity, East West Link (G)
-  up   0. 100. 350. 500. 700. 800. 1050.
+scale P.HJZ "Hijaz" home D      # Hijaz + Nahawand on 5 (Phrygian dominant, equal-tempered)
+  up   0. 100. 400. 500. 700. 800. 1000.
 
 # ---- SUBMINOR family: Phrygian with the 2nd and 6th squeezed toward the note below ----
 scale P.SUB "SubPhryg" home G   # subminor 2nd + subminor 6th. KGLW: Open Water, Intrasport (G), Ataraxia (A, D)
