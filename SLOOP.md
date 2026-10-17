@@ -321,7 +321,7 @@ SLOOP plays **quarter tones**. It has **73 scales in six sets**, a **24-note gri
 | **TURK** (16–27) | `T.RST` Rast, `USSAK` Ussak, `HUSEY` Huseyni, `KURDI` Kurdi, `NIHAV` Nihavend, `HICAZ` Hicaz, `HCKAR` Hicazkar, `SUZIN` Suzinak, `KARCI` Karcigar, `T.SBA` Saba, `SEGAH` Segah, `HUZZM` Huzzam |
 | **ARAB** (28–39) | `RAST` Rast, `BAYAT` Bayati, `SABA` Saba, `SIKAH` Sikah, `HIJAZ` Hijaz, `NAHAW` Nahawand, `KURD` Kurd, `AJAM` Ajam, `NIKRZ` Nikriz, `HJKAR` Hijazkar, `SUZNK` Suznak, `HUZAM` Huzam |
 | **INDIA** (40–51) | `YAMAN` Yaman, `BILAW` Bilawal, `KHMAJ` Khamaj, `KAFI` Kafi, `ASAVR` Asavari, `BHRVI` Bhairavi, `BHAIR` Bhairav, `TODI` Todi, `PURVI` Purvi, `MARWA` Marwa, `BHUPL` Bhupali, `MALKS` Malkauns |
-| **PSYCH** (52–67) | `P.HUS` Huseyni, `P.MSR` UshMasri, `P.NEV` Neva, `P.USK` Ussak, `P.NHK` NeutHkar, `P.HKR` Hicazkar, `P.HJZ` Hijaz, `P.SUB` SubPhryg, `P.SU6` SubPhr6, `P.SEE` SeeMe, `P.KAN` Kanada, `P.KNG` KanadaGa, `P.KNN` KanadaNi, `P.RST` Rast, `P.ACR` AcemRast, `P.MHR` Mahur |
+| **PSYCH** (52–67) | `P.HUS` Huseyni, `P.MSR` UshMasri, `P.NEV` Neva, `P.USK` Ussak, `P.NHK` NeutHkar, `P.HKR` Hicazkar, `P.HJZ` Hijaz, `P.SUB` SubPhryg, `P.SU6` SubPhr6, `P.SEE` SeeMe, `P.BHL` LowBhair, `P.CHG` Chahrgah, `P.HMY` Homayun, `P.RST` Rast, `P.ACR` AcemRast, `P.MHR` Mahur |
 | **JINS** (68–72) | `J.KGL` KGLW, `J.NRZ` Nairuz, `J.SZK` Suznak, `J.HJR` HijazRst, `J.DRB` Darbari |
 
 - **Choose.** Hold **SEL**: **PRESETS** cycles the *set* (WEST → TURK → ARAB → INDIA → PSYCH → JINS) and picks its first scale; **KNOB 2** steps through the scales of the current set and wraps. The bar under KNOB 2 shows the place within the set. The title bar shows *root, set, scale, intonation* (for example `Ed arab sikah trad`).

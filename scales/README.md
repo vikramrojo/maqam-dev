@@ -27,7 +27,7 @@ By set (the convention of the files, kept in each file's header comment):
 - **TURK**: Pythagorean ratios (Arel-Ezgi-Uzdilek). Write comma counts only in comments.
 - **ARAB**: al-Ṣabbāgh (1954) ratios from Rast.
 - **INDIA**: just-intonation ratios.
-- **PSYCH**: equal quarter-tone cents (`0. 150. 300. ...`), so every offset is 0: makam and maqam scales as King Gizzard and the Lizard Wizard play them on quarter-tone-fretted guitars. Five families, 4 + 3 + 3 + 3 + 3 (Hüseyni, Hijaz, subminor Phrygian, the Kanada ga: the low komal ga of Darbari Kanada paired with a low ni, and Rast), each a 12-tone frame with two moving notes; the file header explains the slots.
+- **PSYCH**: equal quarter-tone cents (`0. 150. 300. ...`), so every offset is 0: makam and maqam scales as King Gizzard and the Lizard Wizard play them on quarter-tone-fretted guitars. Five families, 4 + 3 + 3 + 3 + 3 (Hüseyni, Hijaz, subminor Phrygian, Bhairav: raga Bhairav's re and dha low, or neutral as Persian Chahargah, and Rast), each a 12-tone frame with two moving notes; the file header explains the slots.
 - **JINS**: equal quarter-tone cents, like PSYCH: combination scales, a lower jins from one PSYCH family and an upper jins from another (KGLW's K.G.L.W. scale, the maqamat Nairuz, Suznak and Hijaz with Rast on the 4th, raga Darbari). Each row is attested; the file header lists the jinsas.
 
 ## Rules

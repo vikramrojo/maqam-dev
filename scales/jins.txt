@@ -1,5 +1,5 @@
 # SLOOP scales: JINS set (index 68..72)
-# Combination scales: a lower jins from one PSYCH family and an upper jins (on the 5th) from another, the
+# Combination scales: a lower jins and a different upper jins (on the 5th), the
 # way the slides read KGLW's "K.G.L.W." scale (a Huseyni pentachord + a neutral Hijaz tetrachord). Each
 # row here is attested: a KGLW song, a named Arabic maqam, or a Hindustani raga. Equal quarter tones
 # (24-TET cents), so every offset is 0, as in PSYCH.
@@ -7,9 +7,11 @@
 #   (slide 62, K.G.L.W.); maqamworld.com (Nairuz, Suznak, Hijaz); Wikipedia, "Darbari Kanada".
 #
 # The jinsas, in quarter-tone steps (each adds up to a perfect 4th, 10):
-#   Bayati 3-3-4   neutral Hijaz 2-5-3   subminor 1-5-4   Kanada 4-1-5   Rast 4-3-3      (microtonal)
+#   Bayati 3-3-4   neutral Hijaz 2-5-3   subminor 1-5-4   Rast 4-3-3   low Bhairav 1-7-2   Chahargah 3-5-2
+#   Kanada 4-1-5 (the Kanada ga: the low komal ga of Darbari Kanada)                       (microtonal)
 #   Kurd 2-4-4     Nahawand 4-2-4        Hijaz 2-6-2      Ajam 4-4-2                      (12-TET)
 # A PSYCH core is one jins twice; a JINS scale is two different ones, at least one of them microtonal.
+# Darbari keeps the Kanada ga here; PSYCH's Bhairav family replaced the Kanada family.
 
 scale J.KGL "KGLW" home B       # Bayati + neutral Hijaz on 5 (3-3-4 | 2-5-3). KGLW: K.G.L.W. (B)
   up   0. 150. 300. 500. 700. 800. 1050.

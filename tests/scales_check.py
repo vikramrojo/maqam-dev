@@ -58,8 +58,8 @@ HOMES = {"RAST": "C", "BAYAT": "D", "SABA": "D", "SIKAH": "Ed", "HIJAZ": "D", "N
          "T.SBA": "A", "SEGAH": "Bd", "HUZZM": "Bd"}
 
 PSYCH_HOMES = {"P.HUS": "A", "P.MSR": "D", "P.NEV": "A", "P.USK": "A", "P.HJZ": "D", "P.HKR": "G", "P.NHK": "G",
-               "P.SUB": "G", "P.SU6": "G", "P.SEE": "Gb", "P.KAN": "C", "P.KNG": "C",
-               "P.KNN": "C", "P.RST": "C", "P.ACR": "G", "P.MHR": "C"}
+               "P.SUB": "G", "P.SU6": "G", "P.SEE": "Gb", "P.BHL": "C", "P.CHG": "C",
+               "P.HMY": "C", "P.RST": "C", "P.ACR": "G", "P.MHR": "C"}
 JINS_HOMES = {"J.KGL": "B", "J.NRZ": "C", "J.SZK": "C", "J.HJR": "D", "J.DRB": "C"}
 
 

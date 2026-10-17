@@ -237,7 +237,7 @@ SETS = [
      "Makam and maqam scales as quarter-tone-fretted guitars play them: every note on the 50-cent grid, so every offset is 0. "
      "Four families (4 + 3 + 3 + 3), each a 12-tone frame with two notes that move: <i>H&uuml;seyni</i> (the 2nd and 6th: neutral, minor "
      "or major), <i>Hijaz</i> (the 3rd and 7th narrowed to neutral), <i>subminor Phrygian</i> (the 2nd and 6th a quarter tone above "
-     "the note below) and the <i>Kanada</i> ga (the low komal ga of Darbari Kanada, a quarter tone low, paired with a low ni on a Kafi frame), and <i>Rast</i> (its neutral 3rd, with a neutral, minor or major 7th). After The Pop Descriptivist's "
+     "the note below) and <i>Bhairav</i> (raga Bhairav's re and dha, a quarter tone low, or neutral as in Persian <i>Chahargah</i>), and <i>Rast</i> (its neutral 3rd, with a neutral, minor or major 7th). After The Pop Descriptivist's "
      "<a href=\"https://www.youtube.com/watch?v=TiGI-5i2wZ8\">The Microtonal Scales of King Gizzard and the Lizard Wizard</a>."),
     ("JINS", "Jins combinations", "24-tone equal temperament, two different jinsas",
      "A lower jins from one PSYCH family and an upper jins, on the 5th, from another: the way King Gizzard's "

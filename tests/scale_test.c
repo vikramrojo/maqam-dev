@@ -161,8 +161,8 @@ static const struct { const char *code; uint8_t set; uint32_t asc, desc; } FROZE
     {"P.HUS", SET_PSYCH, 0x124449u, 0x124449u}, {"P.MSR", SET_PSYCH, 0x124451u, 0x124451u}, {"P.NEV", SET_PSYCH, 0x144449u, 0x144449u},
     {"P.USK", SET_PSYCH, 0x114449u, 0x114449u}, {"P.NHK", SET_PSYCH, 0x214485u, 0x214485u}, {"P.HKR", SET_PSYCH, 0x414505u, 0x414505u},
     {"P.HJZ", SET_PSYCH, 0x114505u, 0x114505u}, {"P.SUB", SET_PSYCH, 0x10C443u, 0x10C443u}, {"P.SU6", SET_PSYCH, 0x10C445u, 0x10C445u},
-    {"P.SEE", SET_PSYCH, 0x10C449u, 0x10C449u}, {"P.KAN", SET_PSYCH, 0x0C4431u, 0x0C4431u}, {"P.KNG", SET_PSYCH, 0x144431u, 0x144431u},
-    {"P.KNN", SET_PSYCH, 0x0C4451u, 0x0C4451u}, {"P.RST", SET_PSYCH, 0x244491u, 0x244491u}, {"P.ACR", SET_PSYCH, 0x144491u, 0x144491u},
+    {"P.SEE", SET_PSYCH, 0x10C449u, 0x10C449u}, {"P.BHL", SET_PSYCH, 0x40C503u, 0x40C503u}, {"P.CHG", SET_PSYCH, 0x424509u, 0x424509u},
+    {"P.HMY", SET_PSYCH, 0x114509u, 0x114509u}, {"P.RST", SET_PSYCH, 0x244491u, 0x244491u}, {"P.ACR", SET_PSYCH, 0x144491u, 0x144491u},
     {"P.MHR", SET_PSYCH, 0x444491u, 0x444491u}, {"J.KGL", SET_JINS, 0x214449u, 0x214449u}, {"J.NRZ", SET_JINS, 0x124491u, 0x124491u},
     {"J.SZK", SET_JINS, 0x414491u, 0x414491u}, {"J.HJR", SET_JINS, 0x124505u, 0x124505u}, {"J.DRB", SET_JINS, 0x10C431u, 0x10C431u},
 };
@@ -245,13 +245,13 @@ static void scale_table_test(void)
     }
     {   /* PSYCH: the moving slots of each family (slot = quarter tones from the root) */
         static const uint8_t HUS[] = {0, 3, 6, 10, 14, 17, 20}, SUB[] = {0, 1, 6, 10, 14, 15, 20}, NHK[] = {0, 2, 7, 10, 14, 16, 21},
-                             KAN[] = {0, 4, 5, 10, 14, 18, 19};
+                             BHL[] = {0, 1, 8, 10, 14, 15, 22};
         assert(SCALES[sc_code("P.HUS")].asc == slots(HUS, sizeof HUS));               /* neutral 2nd + neutral 6th */
         assert(SCALES[sc_code("P.SUB")].asc == slots(SUB, sizeof SUB));               /* subminor 2nd + subminor 6th */
         assert(SCALES[sc_code("P.NHK")].asc == slots(NHK, sizeof NHK));               /* neutral 3rd + neutral 7th */
-        assert(SCALES[sc_code("P.KAN")].asc == slots(KAN, sizeof KAN));               /* Kanada: low ga (250 c) + low ni (950 c) */
+        assert(SCALES[sc_code("P.BHL")].asc == slots(BHL, sizeof BHL));               /* low Bhairav: re 50 c, dha 750 c, G and N major */
         {   /* the five PSYCH cores repeat one jins on the 5th (tetrachord symmetry); a JINS scale joins two different ones */
-            static const char *const CORE[] = {"P.HUS", "P.NHK", "P.SUB", "P.KAN", "P.RST"};
+            static const char *const CORE[] = {"P.HUS", "P.NHK", "P.SUB", "P.BHL", "P.RST"};
             for (k = 0; k < 5u; k++) {
                 uint32_t m = SCALES[sc_code(CORE[k])].asc;
                 assert(((m & 0x3FFu) << 14) == (m & 0xFFC000u));
