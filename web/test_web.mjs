@@ -211,20 +211,20 @@ async function editorMock() {
     ok(on.p[45] === 2 && on.p[46] === 7 && off.p[45] === 0 && off.p[46] === 1, "editor: a factory preset turns the SLICER off");
   }
   const scale = E.parse[E.CMD.DESC](await rq(E.req.desc(0, 26)));
-  /* the 65 codes in index order == the frozen list of tools/gen_scales.py; P_SCALE (26) follows P_ROOT in core.h */
+  /* the 73 codes in index order == the frozen list of tools/gen_scales.py; P_SCALE (26) follows P_ROOT in core.h */
   const frozen = /FROZEN = \(([\s\S]*?)\)\.split\(\)/.exec(readFileSync(join(HERE, "../tools/gen_scales.py"), "utf8"))[1]
     .split("\n").map((l) => l.replace(/^\s*"|"\s*$/g, "")).join(" ").trim().split(/\s+/);
   const ch = readFileSync(join(HERE, "../firmware/src/core.h"), "utf8");
   const pEnum = ch.slice(ch.indexOf("P_LEVEL,"), ch.indexOf("P_COUNT")).replace(/\/\*[\s\S]*?\*\//g, "").split(",").map((x) => x.trim()).filter(Boolean);
-  ok(frozen.length === 65 && pEnum.indexOf("P_SCALE") === 26 && pEnum.indexOf("P_ROOT") === 25, "editor: P_SCALE is id 26 in core.h, 65 frozen scale codes");
+  ok(frozen.length === 73 && pEnum.indexOf("P_SCALE") === 26 && pEnum.indexOf("P_ROOT") === 25, "editor: P_SCALE is id 26 in core.h, 73 frozen scale codes");
   ok(pEnum.indexOf("P_CENT") === pEnum.indexOf("P_E0") - 1 && pEnum.indexOf("P_E0") === info.pe0 && pEnum.length === info.pcount,
     "maqam: P_CENT is the id just before P_E0, and the mock's counts == core.h");
   const root = E.parse[E.CMD.DESC](await rq(E.req.desc(0, 25)));
   ok(root.label === "ROOT" && root.max === 23 && E.fmtValue(root, 7)[0] === "Ed" && E.fmtValue(root, 23)[0] === "Cd"
     && E.NOTE_NAMES24.length === 24, "editor: ROOT 0..23 with 24 names");
-  ok(scale.label === "SCL" && scale.max === 64 && eq(scale.names, frozen), "editor: all 65 scale names exposed");
-  const scaleSet = E.parse[E.CMD.SET](await rq(E.req.set(0, scale.id, 64)));
-  ok(scaleSet.value === 64, "editor: new scale selection is not clamped to the old range");
+  ok(scale.label === "SCL" && scale.max === 72 && eq(scale.names, frozen), "editor: all 73 scale names exposed");
+  const scaleSet = E.parse[E.CMD.SET](await rq(E.req.set(0, scale.id, 72)));
+  ok(scaleSet.value === 72, "editor: new scale selection is not clamped to the old range");
   const inton = E.parse[E.CMD.DESC](await rq(E.req.desc(1, info.gcount - 1)));
   ok(inton.label === "INTON" && eq(inton.names, ["EQUAL", "TRAD"]) && inton.def === 1, "editor: global INTON (G_INTON, the last global)");
   const cent = E.parse[E.CMD.DESC](await rq(E.req.desc(0, info.pe0 - 1)));

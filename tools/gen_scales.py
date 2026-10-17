@@ -7,7 +7,7 @@ usage: gen_scales.py OUT.h            write the header
        gen_scales.py --print          print a human table (code set asc desc tune)
        ... --dir DIR                  read the scale files from DIR (default: scales/ next to tools/)
 
-Scale file format (one file per set: west.txt turk.txt arab.txt india.txt psych.txt; '#' starts a comment):
+Scale file format (one file per set: west.txt turk.txt arab.txt india.txt psych.txt jins.txt; '#' starts a comment):
 
     scale CODE "Name" home <note>
       from <value>      (optional) the maqam's own tonic; every value is divided by it and
@@ -31,8 +31,8 @@ import sys
 from fractions import Fraction
 from pathlib import Path
 
-SETS = ["WEST", "TURK", "ARAB", "INDIA", "PSYCH"]
-FILES = {"WEST": "west.txt", "TURK": "turk.txt", "ARAB": "arab.txt", "INDIA": "india.txt", "PSYCH": "psych.txt"}
+SETS = ["WEST", "TURK", "ARAB", "INDIA", "PSYCH", "JINS"]
+FILES = {"WEST": "west.txt", "TURK": "turk.txt", "ARAB": "arab.txt", "INDIA": "india.txt", "PSYCH": "psych.txt", "JINS": "jins.txt"}
 
 # Indices are append-only: this list is the contract. These codes keep their indices; scales not
 # in it are numbered after them. Add a new code here (at the end) once it ships.
@@ -41,9 +41,10 @@ FROZEN = (
     "T.RST USSAK HUSEY KURDI NIHAV HICAZ HCKAR SUZIN KARCI T.SBA SEGAH HUZZM "
     "RAST BAYAT SABA SIKAH HIJAZ NAHAW KURD AJAM NIKRZ HJKAR SUZNK HUZAM "
     "YAMAN BILAW KHMAJ KAFI ASAVR BHRVI BHAIR TODI PURVI MARWA BHUPL MALKS "
-    "P.HUS P.MSR P.NEV P.USK P.NHK P.HKR P.HJZ P.SUB P.SU6 P.SEE P.KAN P.KNG P.KNN"
+    "P.HUS P.MSR P.NEV P.USK P.NHK P.HKR P.HJZ P.SUB P.SU6 P.SEE P.KAN P.KNG P.KNN "
+    "P.RST P.ACR P.MHR J.KGL J.NRZ J.SZK J.HJR J.DRB"
 ).split()
-EXPECT_SET = [0] * 16 + [1] * 12 + [2] * 12 + [3] * 12 + [4] * 13   # set of each frozen index
+EXPECT_SET = [0] * 16 + [1] * 12 + [2] * 12 + [3] * 12 + [4] * 16 + [5] * 5   # set of each frozen index
 
 LETTER = {"C": 0, "D": 4, "E": 8, "F": 10, "G": 14, "A": 18, "B": 22}
 SUFFIX = {"": 0, "b": -2, "#": 2, "d": -1, "+": 1}
@@ -165,7 +166,7 @@ def load(d):
             raise Err(f"{sc['src']}: scale {sc['code']}: duplicate code (also {seen[sc['code']]})")
         seen[sc["code"]] = sc["src"]
     # Index order: the frozen codes keep their positions whatever the line order in the files; any
-    # other scale is appended after them, in file order (west, turk, arab, india, psych), so a new scale
+    # other scale is appended after them, in file order (west, turk, arab, india, psych, jins), so a new scale
     # can be added to any set's file without moving the existing ones.
     by = {sc["code"]: sc for sc in out}
     for i, code in enumerate(FROZEN):

@@ -683,7 +683,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_str(d->label, 8);
         ed_str(d->unit, 8);
         if (d->fmt == F_ENUM && d->names)
-            for (i = 0; i <= (uint32_t)(d->max - d->min) && i < 128u; i++)  /* (the 34 drum kits, the 65 scales) */
+            for (i = 0; i <= (uint32_t)(d->max - d->min) && i < 128u; i++)  /* (the 34 drum kits, the 73 scales) */
                 ed_str(d->names[i], 8);
         break;
     case ED_STEP_GET:

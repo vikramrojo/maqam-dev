@@ -59,7 +59,8 @@ HOMES = {"RAST": "C", "BAYAT": "D", "SABA": "D", "SIKAH": "Ed", "HIJAZ": "D", "N
 
 PSYCH_HOMES = {"P.HUS": "A", "P.MSR": "D", "P.NEV": "A", "P.USK": "A", "P.HJZ": "D", "P.HKR": "G", "P.NHK": "G",
                "P.SUB": "G", "P.SU6": "G", "P.SEE": "Gb", "P.KAN": "C", "P.KNG": "C",
-               "P.KNN": "C"}
+               "P.KNN": "C", "P.RST": "C", "P.ACR": "G", "P.MHR": "C"}
+JINS_HOMES = {"J.KGL": "B", "J.NRZ": "C", "J.SZK": "C", "J.HJR": "D", "J.DRB": "C"}
 
 
 def spread(m):
@@ -76,9 +77,9 @@ def main():
         if not ok:
             bad += 1
             print("FAIL:", msg)
-    chk(len(res) == 65 and [r["code"] for r in res] == G.FROZEN, "65 codes in frozen order")
+    chk(len(res) == 73 and [r["code"] for r in res] == G.FROZEN, "73 codes in frozen order")
     chk([r["set"] for r in res] == G.EXPECT_SET, "set of each scale")
-    chk(all(len(r["code"]) <= 5 for r in res) and len({r["code"] for r in res}) == 65, "codes")
+    chk(all(len(r["code"]) <= 5 for r in res) and len({r["code"] for r in res}) == 73, "codes")
     for r, m12 in zip(res[:16], WEST12):
         chk(r["asc"] == r["desc"] == spread(m12), f"{r['code']} mask {r['asc']:06X} vs seq.c {spread(m12):06X}")
         chk(not any(r["tune"]) and r["home"] == 0, f"{r['code']} tune/home")
@@ -101,6 +102,8 @@ def main():
     for c, h in PSYCH_HOMES.items():
         chk(by[c]["set"] == 4 and not any(by[c]["tune"]), f"{c} set / tune")
         chk(by[c]["home"] == G.home_pc(h), f"{c} home")
+    for c, h in JINS_HOMES.items():
+        chk(by[c]["set"] == 5 and not any(by[c]["tune"]) and by[c]["home"] == G.home_pc(h), f"{c} set / tune / home")
     # negative fixtures: must fail, naming the scale
     for sub, who in (("removed", "MIN"), ("collide", "MAJ")):
         d = ROOT / "tests" / "scales_bad" / sub

@@ -188,7 +188,7 @@ def table(logo_img):
           X("webapp/sloop.webmanifest", '"id": "editor/"', '"id": "installer/"'),
           X("webapp/sloop.webmanifest", '"start_url": "editor/"', '"start_url": "installer/"'),
           X("webapp/sloop.webmanifest", '"description": "SLOOP for the M-VAVE FM-1: the editor and the installer, also without internet"',
-            '"description": "Maqam for the M-VAVE FM-1: quarter tones and 65 scales; the editor, the installer and an emulator, also without internet"')]
+            '"description": "Maqam for the M-VAVE FM-1: quarter tones and 73 scales; the editor, the installer and an emulator, also without internet"')]
     # ---- the emulator page: its theme files sit in assets/ next to it when served alone (web/emu/build.sh); in the site they are one level up
     T += [X(EMU, re_(r'href="assets/(largen|largen\.components|theme-dark|maqam-theme|maqam)\.css"'), r'href="../assets/\1.css"', 5)]
     return T

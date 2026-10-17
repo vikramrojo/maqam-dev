@@ -112,8 +112,8 @@ sys.path.insert(0, str(ROOT / "tools"))
 import gen_scales as G  # noqa: E402
 import gen_site_pages as P  # noqa: E402
 rows = P.scales_data()
-check("scales: exactly the 65 scales of the data file, in order", codes == G.FROZEN and len(codes) == 65)
-check("scales: 16 / 12 / 12 / 12 / 13 per set", [sum(1 for r in rows if r["set"] == s) for s in range(5)] == [16, 12, 12, 12, 13] and sc.count("<table") == 5)
+check("scales: exactly the 73 scales of the data file, in order", codes == G.FROZEN and len(codes) == 73)
+check("scales: 16 / 12 / 12 / 12 / 16 / 5 per set", [sum(1 for r in rows if r["set"] == s) for s in range(6)] == [16, 12, 12, 12, 16, 5] and sc.count("<table") == 6)
 trad = lambda code, k, form="up": [r for r in rows if r["code"] == code][0][form][k][1]   # noqa: E731
 check("scales: TRAD cents (TURK Rast 3rd 384.4, ARAB Rast 3rd 356.9, INDIA Bhupali Ga 386.3)",
       abs(trad("T.RST", 2) - 384.4) < 0.06 and abs(trad("RAST", 2) - 356.9) < 0.06 and abs(trad("BHUPL", 2) - 386.3) < 0.06
@@ -134,7 +134,7 @@ check("the emulator page in the site uses ../assets/ (build/emu keeps assets/)",
       and 'href="assets/' not in emu_html and 'href="assets/' in (ROOT / "web" / "emu" / "index.html").read_text(encoding="utf-8"))
 navs = {k: re.findall(r">([^<]+)</a>", re.search(r'<nav class="site-nav".*?</nav>', h, re.S).group(0)) for k, h in pages.items()}
 check("the same header navigation on every page, without the editor", len({tuple(v) for v in navs.values()}) == 1
-      and list(navs["landing"]) == ["Home", "Install", "Try it", "How to play", "The 65 scales", "Source"])
+      and list(navs["landing"]) == ["Home", "Install", "Try it", "How to play", "The 73 scales", "Source"])
 foot = {k: re.sub(r"\s+", " ", re.search(r"<footer class=\"site-footer.*?</footer>", h, re.S).group(0)) for k, h in pages.items()}
 check("the same footer on every page", len(set(foot.values())) == 1)
 check("installer behaviour kept: the install flow elements and the script",

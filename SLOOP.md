@@ -12,7 +12,7 @@ SLOOP is free and open source (GPL-3.0), based on [Felucca](https://github.com/h
 
 ### New: microtonal scales
 
-- **65 scales in five sets** — WEST (the 16 you know), TURK makams, ARAB maqamat, INDIA ragas, PSYCH (microtonal psych) — on a **24-note grid** with quarter tones, ascending and descending forms, and an **EQUAL / TRADITIONAL** tuning switch. Hold **SEL**: PRESETS picks the set, KNOB 2 the scale, ALGORITHM the tuning; **OCT− / OCT+ + a key** plays a half-flat / half-sharp. The root has 24 values. See [Scales](#scales-west-turkish-arabic-indian).
+- **73 scales in six sets** — WEST (the 16 you know), TURK makams, ARAB maqamat, INDIA ragas, PSYCH (microtonal psych), JINS (jins combinations) — on a **24-note grid** with quarter tones, ascending and descending forms, and an **EQUAL / TRADITIONAL** tuning switch. Hold **SEL**: PRESETS picks the set, KNOB 2 the scale, ALGORITHM the tuning; **OCT− / OCT+ + a key** plays a half-flat / half-sharp. The root has 24 values. See [Scales](#scales-west-turkish-arabic-indian).
 - **OCT− / OCT+ change the octave when released** (not when pressed), so they can also be held as a quarter-tone modifier.
 - **A bend on every step is a parameter lock.** The new track parameter **CENT** (SEL 2, −63..+63 cents) can be locked like any other: hold the step, PRESETS makes the lock, ALGORITHM steps to CENT (see *Parameter locks* under [SEQ](#seq--steps-step-sequencer)). Steps hold quarter tones; note names show a half-flat (`Ed`) and a half-sharp (`F+`), and the web editor protocol is version 11.
 - **Projects saved before still load** (SLOOP 2.0 to 2.6): the key is kept, the tuning is TRADITIONAL, every bend is 0 and the music plays as before. Older SLOOP firmware cannot read a project saved by this version, so **make a backup with the web editor before updating** (Projects tab → Save a backup); a SLOOP 2.6 backup restores into this version and converts as it loads.
@@ -303,7 +303,7 @@ The 16 white keys are the 16 steps of the page; the lit ones play. The first fou
 - **Any key** sets the **key of the song**: the root of all three synth tracks (*KEY D*).
 - **KNOB 1 CHORD** (selected synth track): OFF, TRIAD, 7TH, 9TH (1-3-7-9, the lo-fi / R&B voicing), SUS4, POWER. With a chord on, **the white keys walk the scale from C4** — C4 is the chord of the key's I, D4 the II, E4 the III… — and one finger plays the whole chord, recorded as a chord. With SCALE on CHR, the chords come from the minor scale.
 - **CHORD+ (2.4, after HiChord and minichord): the black keys change the chord.** With a chord mode on, hold a black key while you play a white one — or press it while the chord is held, and the chord changes under your finger: **F#** major ↔ minor, **G#** adds the 7th, **A#** sus4, **C#** adds the 9th, **D#** an inversion (both octaves of black keys; hold several to combine them; the 7th and 9th come from the scale: in C major, G4 (the V chord, G) with G# is G7, with F# + G# Gm7). What you play is recorded as it sounds. On the **SEL 2** page: **STRUM** spreads a chord's notes like a strummed guitar (1–60 ms a note; right: low to high, left: high to low), on the keys and on the chord steps the sequencer plays; **VLEAD** ON voices each chord nearest the last one, so a progression moves smoothly instead of jumping.
-- **KNOB 2 SCALE** for all synth tracks, within the current set (**PRESETS** picks the set: WEST, TURK, ARAB, INDIA, PSYCH; 65 scales in all, see [Scales](#scales-west-turkish-arabic-indian)). **ALGORITHM** sets EQUAL / TRADITIONAL tuning.
+- **KNOB 2 SCALE** for all synth tracks, within the current set (**PRESETS** picks the set: WEST, TURK, ARAB, INDIA, PSYCH, JINS; 73 scales in all, see [Scales](#scales-west-turkish-arabic-indian)). **ALGORITHM** sets EQUAL / TRADITIONAL tuning.
 - **KNOB 3 KEYS**: OFF (all keys chromatic), SNAP (every key rounded to the scale), WHITE (the white keys walk the scale, the black keys are silent).
 - **KNOB 4 TRANSPOSE** the selected track, ±24 semitones.
 
@@ -313,7 +313,7 @@ Changing a sound (PRESETS, a user preset) never changes the key, the chord mode,
 
 *A visual guide to these screens, with pictures: [SCALES.md](SCALES.md).*
 
-SLOOP plays **quarter tones**. It has **65 scales in five sets**, a **24-note grid** (every semitone and the quarter tone between), and keys that reach the quarter tones. It is an introduction to microtonal playing, not an archive: any scale plays from any root.
+SLOOP plays **quarter tones**. It has **73 scales in six sets**, a **24-note grid** (every semitone and the quarter tone between), and keys that reach the quarter tones. It is an introduction to microtonal playing, not an archive: any scale plays from any root.
 
 | Set | Scales (code, name) |
 | --- | --- |
@@ -321,9 +321,10 @@ SLOOP plays **quarter tones**. It has **65 scales in five sets**, a **24-note gr
 | **TURK** (16–27) | `T.RST` Rast, `USSAK` Ussak, `HUSEY` Huseyni, `KURDI` Kurdi, `NIHAV` Nihavend, `HICAZ` Hicaz, `HCKAR` Hicazkar, `SUZIN` Suzinak, `KARCI` Karcigar, `T.SBA` Saba, `SEGAH` Segah, `HUZZM` Huzzam |
 | **ARAB** (28–39) | `RAST` Rast, `BAYAT` Bayati, `SABA` Saba, `SIKAH` Sikah, `HIJAZ` Hijaz, `NAHAW` Nahawand, `KURD` Kurd, `AJAM` Ajam, `NIKRZ` Nikriz, `HJKAR` Hijazkar, `SUZNK` Suznak, `HUZAM` Huzam |
 | **INDIA** (40–51) | `YAMAN` Yaman, `BILAW` Bilawal, `KHMAJ` Khamaj, `KAFI` Kafi, `ASAVR` Asavari, `BHRVI` Bhairavi, `BHAIR` Bhairav, `TODI` Todi, `PURVI` Purvi, `MARWA` Marwa, `BHUPL` Bhupali, `MALKS` Malkauns |
-| **PSYCH** (52–64) | `P.HUS` Huseyni, `P.MSR` UshMasri, `P.NEV` Neva, `P.USK` Ussak, `P.NHK` NeutHkar, `P.HKR` Hicazkar, `P.HJZ` Hijaz, `P.SUB` SubPhryg, `P.SU6` SubPhr6, `P.SEE` SeeMe, `P.KAN` Kanada, `P.KNG` KanadaGa, `P.KNN` KanadaNi |
+| **PSYCH** (52–67) | `P.HUS` Huseyni, `P.MSR` UshMasri, `P.NEV` Neva, `P.USK` Ussak, `P.NHK` NeutHkar, `P.HKR` Hicazkar, `P.HJZ` Hijaz, `P.SUB` SubPhryg, `P.SU6` SubPhr6, `P.SEE` SeeMe, `P.KAN` Kanada, `P.KNG` KanadaGa, `P.KNN` KanadaNi, `P.RST` Rast, `P.ACR` AcemRast, `P.MHR` Mahur |
+| **JINS** (68–72) | `J.KGL` KGLW, `J.NRZ` Nairuz, `J.SZK` Suznak, `J.HJR` HijazRst, `J.DRB` Darbari |
 
-- **Choose.** Hold **SEL**: **PRESETS** cycles the *set* (WEST → TURK → ARAB → INDIA → PSYCH) and picks its first scale; **KNOB 2** steps through the scales of the current set and wraps. The bar under KNOB 2 shows the place within the set. The title bar shows *root, set, scale, intonation* (for example `Ed arab sikah trad`).
+- **Choose.** Hold **SEL**: **PRESETS** cycles the *set* (WEST → TURK → ARAB → INDIA → PSYCH → JINS) and picks its first scale; **KNOB 2** steps through the scales of the current set and wraps. The bar under KNOB 2 shows the place within the set. The title bar shows *root, set, scale, intonation* (for example `Ed arab sikah trad`).
 - **Any scale on any root.** Choosing a scale never moves the key of the song. A non-WEST scale shows its traditional tonic under KNOB 2 (`home Bb` for ARAB Ajam), as a hint only: play it from there, or from anywhere else; the intervals and the tuning travel with the root. The root has 24 values: hold **OCT−** (a quarter tone down) or **OCT+** (up) while you press the key in SEL to choose a half-flat or half-sharp root (OCT− + E = E half-flat, written `Ed`).
 - **Ascending and descending forms.** Some scales differ going down (ARAB Rast has B half-flat up and B-flat down; INDIA Yaman has no Pa going up). On a synth track a key lower than the previous key uses the descending form; any other key the ascending one, and so does the first key after a pause of more than a second. A scale whose forms differ shows an arrow (up or down) after its name in the SEL title bar. The note you hear is the note that is recorded.
 - **EQUAL / TRADITIONAL.** Each scale also carries the small offsets of its tradition (TURK in Pythagorean ratios, ARAB after al-Ṣabbāgh, INDIA in just intonation), up to ±25 cents. Hold **SEL** and turn **ALGORITHM**: right = TRADITIONAL (the default), left = EQUAL (the plain 24-note grid); the title bar says `trad` or `equal`. Play the same note after each switch to hear the difference: the third of TURK Rast on C is 385 cents in TRADITIONAL and 400 in EQUAL (the tuning is applied when a note starts). WEST scales are the same in both. The setting is saved with the project; projects from before load as TRADITIONAL.
@@ -516,7 +517,7 @@ It looks like the FM-1 (its black screen, the four track colours, its own Termin
 
 The protocol is documented in [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md) (v11). The editor writes presets and the FM6 bank to flash only while the song is stopped, as the FM-1 does.
 
-The editor reads and writes **quarter-tone notes** in the step list (`Ed4` half-flat, `F+3` half-sharp, with the 65 scales and the 24-value root in the Sound tab); a step's bend is the **CENT** parameter lock in the step detail.
+The editor reads and writes **quarter-tone notes** in the step list (`Ed4` half-flat, `F+3` half-sharp, with the 73 scales and the 24-value root in the Sound tab); a step's bend is the **CENT** parameter lock in the step detail.
 
 ## The emulator: try it in your browser
 

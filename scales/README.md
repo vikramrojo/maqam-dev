@@ -1,6 +1,6 @@
 # SLOOP scales
 
-The 65 scales of SLOOP live in five plain text files, one per set: `west.txt`, `turk.txt`, `arab.txt`, `india.txt`, `psych.txt`. `tools/gen_scales.py` turns them into `build/gen/scales.h` (`SCALES[]`, `NSCALES`), and `tools/build.py` runs it with the other generators. Adding a scale is a text edit: no firmware source changes.
+The 73 scales of SLOOP live in six plain text files, one per set: `west.txt`, `turk.txt`, `arab.txt`, `india.txt`, `psych.txt`, `jins.txt`. `tools/gen_scales.py` turns them into `build/gen/scales.h` (`SCALES[]`, `NSCALES`), and `tools/build.py` runs it with the other generators. Adding a scale is a text edit: no firmware source changes.
 
 ## A scale
 
@@ -27,11 +27,12 @@ By set (the convention of the files, kept in each file's header comment):
 - **TURK**: Pythagorean ratios (Arel-Ezgi-Uzdilek). Write comma counts only in comments.
 - **ARAB**: al-Ṣabbāgh (1954) ratios from Rast.
 - **INDIA**: just-intonation ratios.
-- **PSYCH**: equal quarter-tone cents (`0. 150. 300. ...`), so every offset is 0: makam and maqam scales as King Gizzard and the Lizard Wizard play them on quarter-tone-fretted guitars. Four families, 4 + 3 + 3 + 3 (Hüseyni, Hijaz, subminor Phrygian, and the Kanada ga: the low komal ga of Darbari Kanada, paired with a low ni), each a 12-tone frame with two moving notes; the file header explains the slots.
+- **PSYCH**: equal quarter-tone cents (`0. 150. 300. ...`), so every offset is 0: makam and maqam scales as King Gizzard and the Lizard Wizard play them on quarter-tone-fretted guitars. Five families, 4 + 3 + 3 + 3 + 3 (Hüseyni, Hijaz, subminor Phrygian, the Kanada ga: the low komal ga of Darbari Kanada paired with a low ni, and Rast), each a 12-tone frame with two moving notes; the file header explains the slots.
+- **JINS**: equal quarter-tone cents, like PSYCH: combination scales, a lower jins from one PSYCH family and an upper jins from another (KGLW's K.G.L.W. scale, the maqamat Nairuz, Suznak and Hijaz with Rast on the 4th, raga Darbari). Each row is attested; the file header lists the jinsas.
 
 ## Rules
 
-- **Append only.** A scale's index is saved in projects, so existing scales never move. The generator holds the frozen list of the 65 shipped scales (`FROZEN` in `tools/gen_scales.py`): they keep their indices whatever the line order in the files, and removing or renaming one is a build error that names it. **Add a new scale to any set's file**: it gets the next free index (53, 54, ...) and belongs to that file's set; the SCL knob still steps through it with the rest of its set. Once a new scale ships, add its code to the end of `FROZEN`.
+- **Append only.** A scale's index is saved in projects, so existing scales never move. The generator holds the frozen list of the 73 shipped scales (`FROZEN` in `tools/gen_scales.py`): they keep their indices whatever the line order in the files, and removing or renaming one is a build error that names it. **Add a new scale to any set's file**: it gets the next free index (53, 54, ...) and belongs to that file's set; the SCL knob still steps through it with the rest of its set. Once a new scale ships, add its code to the end of `FROZEN`.
 - **Cite the source** of every new row in a comment (a book, a page, a website, a recording): ratios and cents need to be checkable.
 - The build fails, naming the file, line and scale, for: a value exactly halfway between two quarter-tone steps (the rounding would be ambiguous: nudge it by a cent or write it as a ratio), two different offsets on one grid position, a code over 5 characters or a repeated code, fewer than 5 or more than 12 degrees, or a tonic missing from a form.
 
@@ -51,4 +52,4 @@ printf '\nscale TEST "TestScl" home D   # throwaway\n  up   1/1 9/8 5/4 4/3 3/2 
 python3 tools/gen_scales.py /tmp/scales.h --dir /tmp/mine
 ```
 
-`NSCALES` is then 66. The frozen test in `tests/scale_test.c` pins the shipped 65 and will say so; a scale you keep needs its row added there and its code to `FROZEN` in the generator.
+`NSCALES` is then 74. The frozen test in `tests/scale_test.c` pins the shipped 73 and will say so; a scale you keep needs its row added there and its code to `FROZEN` in the generator.

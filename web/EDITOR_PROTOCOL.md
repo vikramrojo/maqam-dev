@@ -52,7 +52,7 @@ after an engine change.
 | 2 GET | scope, id | scope, id, v14 |
 | 3 SET | scope, id, v14 | scope, id, v14 (the value after clamping). Setting global `G_ENGSEL` (id from DESC label "ENG") changes the engine with its defaults |
 | 4 DUMP | — | engine, preset, then P_COUNT × v14 (the selected track), then G_COUNT × v14 (globals) |
-| 5 DESC | scope, id | scope, id, fmt, min v14, max v14, def v14, label string, unit string, then for an enum (fmt 8) one name string per value (at most 128; at most 64 before the PSYCH scale set, which made SCALE 65 values; firmware before SLOOP sent at most 16) |
+| 5 DESC | scope, id | scope, id, fmt, min v14, max v14, def v14, label string, unit string, then for an enum (fmt 8) one name string per value (at most 128; at most 64 before the PSYCH scale set, which made SCALE 65 values; 73 with JINS; firmware before SLOOP sent at most 16) |
 | 6 STEP_GET | index 0..NSTEP−1 | index, n (0..4 notes), note0..note3 (the semitone, 7 bit), time (0 NOTE, 1 TIE, 2 REST), flags (1 accent, 2 slide), vel, then (v5) lvl, hi, rat, then (v11) qbits |
 | 7 STEP_SET | index, n, note0..3, time, flags, vel [, lvl, hi, rat (v5) [, qbits (v11)]] | same as STEP_GET (after the write). Without the v5 bytes the step's levels and ratchets become 0; without the v11 byte each note keeps the quarter tone it had when the semitone is unchanged |
 | 8 PRESET | engine, preset | engine, preset (applies the preset: sound, sends, arp; never the pattern, the mix or the key: `LEVEL PAN MUTE`, `LEN DIV SWG GATE`, `ROOT SCL QNT CHORD` stay) |
@@ -448,8 +448,8 @@ semitone it did not change. `UP_GET` / `UP_PUT` append the 16-bit mask of the pa
 before `P_E0`; `DESC` gives its range) that is lockable: a step's bend is a parameter lock of `CENT`
 (`LOCK_SET`, v7), edited like any other lock. In `DUMP` it is the track's fine tune.
 
-**Scales and the root.** `DESC` of `P_SCALE` has max 64 and 65 names in index order (WEST 16, TURK 12, ARAB 12,
-INDIA 12, PSYCH 13: the frozen list of `tools/gen_scales.py`); `P_ROOT` is 0..23 (quarter tones from C); the last global is
+**Scales and the root.** `DESC` of `P_SCALE` has max 72 and 73 names in index order (WEST 16, TURK 12, ARAB 12,
+INDIA 12, PSYCH 16, JINS 5: the frozen list of `tools/gen_scales.py`); `P_ROOT` is 0..23 (quarter tones from C); the last global is
 `INTON` (0 EQUAL, 1 TRAD; saved with the project).
 
 **Degrading.** Firmware before v11 sends and expects no `qbits` (the editor sends none when `INFO` reports a version

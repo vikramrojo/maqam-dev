@@ -1,24 +1,26 @@
-# SLOOP scales: PSYCH set (index 52..64)
+# SLOOP scales: PSYCH set (index 52..64, then the RAST family at 65..67)
 # Microtonal psych: makam and maqam scales as King Gizzard and the Lizard Wizard play them on
 # quarter-tone-fretted guitars, in equal quarter tones (24-TET cents, so every offset is 0).
 # Sources: The Pop Descriptivist, "The Microtonal Scales of King Gizzard and the Lizard Wizard
 #   (a Primer and Compendium)", 2024: https://www.youtube.com/watch?v=TiGI-5i2wZ8 and slides at
 #   https://sites.google.com/site/thepopdescriptivist/home/the-microtonal-scales-of-king-gizzard-and-the-lizard-wizard
-#   maqamworld.com (Ushaq Masri, Hijaz); Touma, The Music of the Arabs; Bor (ed.), The Raga Guide
+#   maqamworld.com (Ushaq Masri, Hijaz, Rast, Mahur); Wikipedia, "Acemli Rast"; Touma, The Music of the Arabs; Bor (ed.), The Raga Guide
 #   (the Kanada ga of Darbari Kanada).
 #
-# Four families, 4 + 3 + 3 + 3, built the way the slides analyse KGLW's scales: tetrachord symmetry.
+# Five families, 4 + 3 + 3 + 3 + 3, built the way the slides analyse KGLW's scales: tetrachord symmetry.
 # Each is a 12-TET frame of five notes plus a pair of notes that move, one in each tetrachord (the 2nd
 # and 6th, or the 3rd and 7th). The core, listed first, puts both on the same rung; the others are variations.
 #   HUSEYNI (4)   frame 1 b3 4 5 b7    slot 2: neutral (150) | major (200)   slot 6: minor | neutral | major
 #   HIJAZ (3)     frame 1 b2 4 5 b6    slot 3: neutral (350) | major (400)   slot 7: b7 | neutral (1050) | maj 7
 #   SUBMINOR (3)  frame 1 b3 4 5 b7    slot 2: subminor (50) | minor | neutral   slot 6: subminor (750) | minor
 #   KANADA (3)    frame 1 2 4 5 6      slot 3: low (250) | minor (300)    slot 7: low (950) | minor (1000)
+#   RAST (3)      frame 1 2 4 5 6      slot 3: neutral (350)               slot 7: minor | neutral (1050) | major
 # HUSEYNI and SUBMINOR share a frame: together the 2nd runs 50-200 c and the 6th 750-900 c.
+# KANADA and RAST share one too: together the 3rd runs 250-400 c and the 7th 950-1100 c.
 # Neutral = halfway between minor and major (150, 350, 850, 1050 c); subminor = a quarter tone
 # above the note below (50 c above the root, 750 c = 50 c above the 5th).
 # home = the traditional tonic (Turkish for Huseyni / Ussak / Neva / Hicazkar, Arabic for
-# Ushaq Masri / Hijaz); the SUBMINOR family has no tradition and uses KGLW's roots (G; See Me F#);
+# Ushaq Masri / Hijaz / Rast / Mahur; Turkish Rast is on G); the SUBMINOR family has no tradition and uses KGLW's roots (G; See Me F#);
 # KANADA has Sa = C.
 
 # ---- HUSEYNI family: lower jins Bayati (or Nahawand), upper jins on the 5th varies ----
@@ -67,3 +69,15 @@ scale P.KNG "KanadaGa" home C   # low ga, komal ni: 4-1-5 | 4-2-4 (Kafi with the
 
 scale P.KNN "KanadaNi" home C   # komal ga, low ni: 4-2-4 | 4-1-5
   up   0. 200. 300. 500. 700. 900. 950.
+
+# ---- RAST family: the neutral 3rd of jins Rast, with the 7th as the moving partner. KGLW: Honey (F# Rast,
+# "a good fit" for its trilled neutral 3rd and 7th). The 12-TET twin, Mixolydian, is in WEST.
+# Appended after KANADA (indices 65..67): PSYCH's first 13 indices stay where PR #4 put them.
+scale P.RST "Rast" home C       # core: Rast + Rast on 5 (4-3-3 | 4-3-3), Arabic Rast ascending. KGLW: Honey (F#)
+  up   0. 200. 350. 500. 700. 900. 1050.
+
+scale P.ACR "AcemRast" home G   # Acemli Rast: Rast + Buselik on 5 (minor 7th, acem); Arabic Rast descending. KGLW: Honey (F#)
+  up   0. 200. 350. 500. 700. 900. 1000.
+
+scale P.MHR "Mahur" home C      # Mahur: Rast + Ajam on 5 (major 7th)
+  up   0. 200. 350. 500. 700. 900. 1100.
